@@ -1,4 +1,4 @@
-#include "myftp.h";
+#include "myftp.h"
 
 int check_port_num(int arg_num, char *port_number_string);
 
