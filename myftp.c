@@ -3,7 +3,7 @@
 void print_arg_error(char *role) {
 	printf("Invalid Arguments\n");
 	if (strcmp(role, "server") == 0) {
-		printf("Usage ./server <PORT_NUMBER>\n");
+		printf("Usage: ./server <PORT_NUMBER>\n");
 	} else if (strcmp(role, "client") == 0) {
 		printf("Usage: ./client <SERVER_IP_ADDRESS> <SERVER_PORT_NUMBER> <list|get|put> <FILE_NAME>\n");
 	}
