@@ -10,6 +10,6 @@ client: myftpclient.o myftp.o
 	${CC} -o client myftpclient.o myftp.o ${LIB}
 
 clean:
+	rm *.o
 	rm server
 	rm client
-	rm *.o

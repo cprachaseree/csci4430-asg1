@@ -3,7 +3,7 @@
 
 void check_arg(int argc);
 int check_port_num(int arg_num, char *port_number_string);
-void* connection(int client_sd);
+void* connection(void* client_sd);
 
 int main(int argc, char *argv[]) {
     check_arg(argc);
@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
     // open socket
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
-        prinf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
+        printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
 	    return -1;
 	}
     // bind port to socket
@@ -34,13 +34,13 @@ int main(int argc, char *argv[]) {
         // keep accepting new connections
         struct sockaddr_in client_addr;
         int addr_len = sizeof(client_addr);
-        int client_sd;
-	    if((client_sd = accept(sd, (struct sockaddr *) &client_addr, &addr_len))<0){
+        int* client_sd = malloc(sizeof(int));
+	    if((*client_sd = accept(sd, (struct sockaddr *) &client_addr, &addr_len))<0){
 		    printf("accept failed: %s (Errno: %d)\n", strerror(errno), errno);
             return -1;
 	    }
         // creating thread for transmission stage to support concurrent clients
-        pthread_create(&threads[thread_count], NULL, &connection, client_sd);
+        pthread_create(&threads[thread_count], NULL, &connection, (void*) client_sd);
         thread_count++;
     }
 }
@@ -51,15 +51,17 @@ void check_arg(int argc) {
   }
 }
 
-void* connection(int client_sd) {
+void* connection(void* client_sd) {
+	// FOR TESTING - copied from tutorial's server to be tested with tutorial's client
     while(1) {
     char buff[100];
     int len;
-    if((len=recv(client_sd,buff,sizeof(buff),0))<0){
+    if((len=recv(*((int*) client_sd),buff,sizeof(buff),0))<0){
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
     buff[len]='\0';
+	printf("%d - ", pthread_self());
     printf("RECEIVED INFO: ");
     if(strlen(buff)!=0)printf("%s\n",buff);
     }
