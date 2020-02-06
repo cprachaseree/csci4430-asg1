@@ -1,5 +1,5 @@
 #include "myftp.h"
-#include<pthread.h>
+#include <pthread.h>
 
 void check_arg(int argc);
 int check_port_num(int arg_num, char *port_number_string);
@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
         printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
-	    return -1;
+        return -1;
 	}
     // bind port to socket
 	struct sockaddr_in server_addr;
@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) {
 		printf("listen failed: %s (Errno: %d)\n",strerror(errno), errno);
 		return -1;
 	}
+    printf("Server is listening to connections\n");
     pthread_t threads[10];
     int thread_count = 0;
     while(1) {
@@ -53,16 +54,14 @@ void check_arg(int argc) {
 
 void* connection(void* client_sd) {
 	// FOR TESTING - copied from tutorial's server to be tested with tutorial's client
-    while(1) {
-    char buff[100];
+    struct message_s client_request_message;
+    memset(&client_request_message, 0, sizeof(client_request_message));
     int len;
-    if((len=recv(*((int*) client_sd),buff,sizeof(buff),0))<0){
+    if ((len = recv(*((int*) client_sd), &client_request_message, sizeof(client_request_message), 0)) < 0) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    buff[len]='\0';
-	printf("%d - ", pthread_self());
-    printf("RECEIVED INFO: ");
-    if(strlen(buff)!=0)printf("%s\n",buff);
-    }
+    printf("Message protocol: %s\n", client_request_message.protocol);
+    printf("Message type: %c\n", client_request_message.type);
+    printf("Message length: %d\n", client_request_message.length);
 }
