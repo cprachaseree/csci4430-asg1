@@ -61,7 +61,13 @@ void* connection(void* client_sd) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    printf("Message protocol: %s\n", client_request_message.protocol);
-    printf("Message type: %c\n", client_request_message.type);
     printf("Message length: %d\n", client_request_message.length);
+    if (client_request_message.type == 0xA1) {
+        printf("Received list request\n");
+    } else if (client_request_message.type == 0xB1) {
+        printf("Received get request\n");
+    } else if (client_request_message.type == 0xC1) {
+        printf("Received put request\n");
+    }
+
 }
