@@ -25,24 +25,47 @@ int main(int argc, char *argv[]) {
 	}
 	printf("Connected client\n");
 	struct message_s client_request_message;
-	memset(&client_request_message, 0, sizeof(client_request_message));
+	memset(&client_request_message, 0, sizeof(struct message_s));
 	set_message_type(&client_request_message, user_cmd, argv);
 	
-	printf("user cmd: %s\n", user_cmd);
-	printf("Message protocol: %s\n", client_request_message.protocol);
-	printf("Message type: %c\n", client_request_message.type);
-	printf("Message length: %d\n", client_request_message.length);
 	int len;
-	if (len = send(sd, (void *) &client_request_message, sizeof(client_request_message), 0) < 0)	{
+	if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0)	{
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 		exit(0);
 	}
 	// send payload if get or put
 	if (strcmp(user_cmd, "list") != 0) {
-		printf("sending more payload\n");
+		printf("Sending file %s\n", argv[4]);
+		if ((len = send(sd, argv[4], strlen(argv[4]), 0)) < 0) {
+			printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+			exit(0);
+		}
 	}
 	// wait for the respond headers
-	printf("Waiting for more payload\n");
+	struct message_s server_response;
+	memset(&server_response, 0, sizeof(struct message_s));
+	if ((len = recv(sd, &server_response, sizeof(struct message_s), 0)) < 0) {
+		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+        exit(0);
+	}
+	if (server_response.type == 0xB3) {
+		printf("File does not exist\n");
+	} else {
+		struct message_s file_data;
+        memset(&file_data, 0, sizeof(struct message_s));
+        if ((len = recv(sd, &file_data, sizeof(struct message_s), 0)) < 0) {
+			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+        	exit(0);
+		}
+		int file_size = file_data.length - sizeof(struct message_s);
+        char *file_contents = (char *) calloc(file_size, sizeof(char));
+        if ((len = recv(sd, file_contents, file_size, 0)) < 0) {
+			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+        	exit(0);
+		}
+		printf("Received file:\n");
+		printf("%s\n", file_contents);
+	}
 }
 
 void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
@@ -66,7 +89,6 @@ char *check_arg(int argc, char *argv[]) {
 		print_arg_error("client");
 	}
 	char *user_cmd = argv[3];
-	printf("User cmd is %s\n", user_cmd);
 	if (strcmp(user_cmd, "list") != 0 && strcmp(user_cmd, "get") != 0 && strcmp(user_cmd, "put") != 0) {
 		printf("1\n");
 		print_arg_error("client");
