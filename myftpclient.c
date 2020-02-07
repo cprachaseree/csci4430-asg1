@@ -9,6 +9,7 @@ int main(int argc, char *argv[]) {
 	char *user_cmd = check_arg(argc, argv);
 	char *SERVER_IP_ADDRESS = argv[1];
 	int SERVER_PORT_NUMBER = port_num_to_int(argv[2], "client");
+	char *file_name_input = argv[4];
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
         printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
@@ -35,8 +36,8 @@ int main(int argc, char *argv[]) {
 	}
 	// send payload if get or put
 	if (strcmp(user_cmd, "list") != 0) {
-		printf("Sending file %s\n", argv[4]);
-		if ((len = send(sd, argv[4], strlen(argv[4]), 0)) < 0) {
+		printf("File name %s\n", file_name_input);
+		if ((len = send(sd, file_name_input, strlen(file_name_input), 0)) < 0) {
 			printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 			exit(0);
 		}
@@ -50,21 +51,24 @@ int main(int argc, char *argv[]) {
 	}
 	if (server_response.type == 0xB3) {
 		printf("File does not exist\n");
-	} else {
-		struct message_s file_data;
-        memset(&file_data, 0, sizeof(struct message_s));
-        if ((len = recv(sd, &file_data, sizeof(struct message_s), 0)) < 0) {
-			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
-        	exit(0);
-		}
-		int file_size = file_data.length - sizeof(struct message_s);
-        char *file_contents = (char *) calloc(file_size, sizeof(char));
-        if ((len = recv(sd, file_contents, file_size, 0)) < 0) {
-			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
-        	exit(0);
-		}
+	} else if (server_response.type == 0xB2) {
+		int file_size = check_file_data_header(sd) - sizeof(struct message_s); 
+		char *file_payload = (char *) calloc(file_size, sizeof(char));
+		receive_file(sd, file_size, file_payload);
 		printf("Received file:\n");
-		printf("%s\n", file_contents);
+		printf("%s\n", file_payload);
+	} else if (server_response.type == 0xC2) {
+		FILE *fp;
+		if ((fp = fopen(file_name_input, "r")) == NULL) {
+        	printf("File does not exist\n");
+    	} else {
+        	printf("File exists\n");
+    	}
+		int file_size = get_file_size(fp);
+		char *file_payload = (char *) calloc(file_size, sizeof(char *));
+        fread(file_payload, file_size, 1, fp);
+        send_file(sd, file_size, file_payload);
+        fclose(fp);
 	}
 }
 
