@@ -1,5 +1,5 @@
 #include "myftp.h"
-#define BUFFER_SIZE 2
+#define BUFFER_SIZE 1024
 
 void print_arg_error(char *role) {
 	printf("Invalid Arguments\n");
@@ -110,11 +110,11 @@ int check_file_data_header(int source_sd) {
 	    exit(0);
 	}
 	// check if file header protocol is correct
+	if (file_data.type == 0xFF) printf("YES\n");
 	if (strncmp(file_data.protocol, "myftp", 5) != 0 || file_data.type != 0xFF) {
 		printf("Invalid header type or protocol.\n");
 		exit(0);
 	}
-
 	return file_data.length;
 }
 

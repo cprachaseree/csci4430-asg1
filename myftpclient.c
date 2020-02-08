@@ -4,6 +4,7 @@ char *check_arg(int argc, char *argv[]);
 void print_arg_error();
 int check_port_number(int port_num_string);
 void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
+void list(int sd, int payload_size);
 
 int main(int argc, char *argv[]) {
 	char *user_cmd = check_arg(argc, argv);
@@ -58,6 +59,9 @@ int main(int argc, char *argv[]) {
 		int file_size = get_file_size(file_name);
 		send_file_header(sd, file_size);
         send_file(sd, file_size, file_name);
+	} else if (server_reply.type == 0xA2) {
+		int payload_size = server_reply.length - sizeof(server_reply); 
+		list(sd, payload_size);
 	}
 }
 
@@ -99,4 +103,15 @@ char *check_arg(int argc, char *argv[]) {
 		print_arg_error("client");
 	}
 	return user_cmd;
+}
+
+void list(int sd, int payload_size) {
+	int len;
+	char* buf;
+	buf = malloc(sizeof(payload_size));
+	if((len = recv(sd, buf, payload_size, 0)) < 0){
+		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+		exit(0);
+	}
+	printf("%s", buf);
 }
