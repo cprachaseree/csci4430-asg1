@@ -4,7 +4,7 @@ char *check_arg(int argc, char *argv[]);
 void print_arg_error();
 int check_port_number(int port_num_string);
 void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
-void list(int sd);
+void list(int sd, int payload_size);
 
 int main(int argc, char *argv[]) {
 	char *user_cmd = check_arg(argc, argv);
@@ -70,6 +70,9 @@ int main(int argc, char *argv[]) {
         fread(file_payload, file_size, 1, fp);
         send_file(sd, file_size, file_payload);
         fclose(fp);
+	} else if (server_response.type == 0xA2) {
+		int payload_size = server_response.length - sizeof(server_response); 
+		list(sd, payload_size);
 	}
 }
 
@@ -113,17 +116,11 @@ char *check_arg(int argc, char *argv[]) {
 	return user_cmd;
 }
 
-void list(int sd) {
+void list(int sd, int payload_size) {
 	int len;
-	struct message_s header;
-	if((len = recv(sd, &header, sizeof(header), 0)) < 0){
-		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
-		exit(0);
-	}
-	int payload_len = header.length - sizeof(header);
 	char* buf;
-	buf = malloc(sizeof(payload_len));
-	if((len = recv(sd, buf, strlen(buf), 0)) < 0){
+	buf = malloc(sizeof(payload_size));
+	if((len = recv(sd, buf, payload_size, 0)) < 0){
 		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 		exit(0);
 	}

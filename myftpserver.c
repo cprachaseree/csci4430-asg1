@@ -5,7 +5,7 @@ void check_arg(int argc);
 int check_port_num(int arg_num, char *port_number_string);
 void* connection(void* client_sd);
 void check_arg(int argc);
-
+void list(int client_sd);
 void get_file(int client_sd, int file_name_length);
 void put_file(int client_sd, int file_name_length);
 
@@ -67,6 +67,7 @@ void* connection(void* client_sd) {
     printf("Message length: %d\n", client_request_message.length);
     if (client_request_message.type == 0xA1) {
         printf("Received list request\n");
+		list(*((int*) client_sd));
     } else if (client_request_message.type == 0xB1) {
         printf("Received get request\n");
         get_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
@@ -152,7 +153,7 @@ void list(int client_sd) {
     while(entry = readdir(folder)) {
 		char* filename;
 		filename = entry->d_name;
-		if(strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0) {
+		if(strcmp(filename, ".") != 0 && strcmp(filename, "..") != 0) {
 			size += strlen(entry->d_name);
 			all_filename = realloc(all_filename, size);
 			strcat(all_filename, filename);
@@ -161,11 +162,11 @@ void list(int client_sd) {
     }
 	reply.length = sizeof(reply) + strlen(all_filename);
 	int len;
-	if((len = send(client_sd, (void *) &reply, sizeof(reply), 0) )< 0){
+	if((len = send(client_sd, &reply, sizeof(reply), 0)) < 0){
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 		exit(0);
 	}
-	if((len = send(client_sd, all_filename, strlen(all_filename), 0) )< 0){
+	if((len = send(client_sd, all_filename, strlen(all_filename), 0)) < 0){
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 		exit(0);
 	}
