@@ -6,6 +6,9 @@ int check_port_num(int arg_num, char *port_number_string);
 void* connection(void* client_sd);
 void check_arg(int argc);
 
+void get_file(int client_sd, int file_name_length);
+void put_file(int client_sd, int file_name_length);
+
 int main(int argc, char *argv[]) {
     check_arg(argc);
     int PORT_NUMBER = port_num_to_int(argv[1], "server");
@@ -61,9 +64,79 @@ void* connection(void* client_sd) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    printf("Message protocol: %s\n", client_request_message.protocol);
-    printf("Message type: %c\n", client_request_message.type);
     printf("Message length: %d\n", client_request_message.length);
+    if (client_request_message.type == 0xA1) {
+        printf("Received list request\n");
+    } else if (client_request_message.type == 0xB1) {
+        printf("Received get request\n");
+        get_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
+    } else if (client_request_message.type == 0xC1) {
+        printf("Received put request\n");
+        put_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
+    }
+
+}
+
+void put_file(int client_sd, int file_name_length) {
+    char *file_name = (char *) calloc(file_name_length, sizeof(char));
+    int len;
+    if ((len = recv(client_sd, file_name, file_name_length, 0)) < 0) {
+        printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+        exit(0);
+    }
+    printf("File name received is %s\n", file_name);
+    struct message_s put_response;
+    memset(&put_response, 0, sizeof(struct message_s));
+    strcpy(put_response.protocol, "myftp");
+    put_response.type = 0xC2;
+    put_response.length = sizeof(put_response);
+    if ((len = send(client_sd, &put_response, sizeof(struct message_s), 0)) < 0) {
+        printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+        exit(0);
+    }
+    int file_size =  check_file_data_header(client_sd) - sizeof(struct message_s); 
+    char *file_payload = (char *) calloc(file_size, sizeof(char));
+    receive_file(client_sd, file_size, file_payload);
+    printf("File received\n");
+    printf("%s\n", file_payload);
+}
+
+void get_file(int client_sd, int file_name_length) {
+    char *file_name = (char *) calloc(file_name_length, sizeof(char));
+    int len;
+    if ((len = recv(client_sd, file_name, file_name_length, 0)) < 0) {
+        printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+        exit(0);
+    }
+    printf("File name received is %s\n", file_name);
+
+    struct message_s get_reponse;
+    memset(&get_reponse, 0, sizeof(struct message_s));
+    strcpy(get_reponse.protocol, "myftp");
+    FILE *fp;
+    if ((fp = fopen(file_name, "r")) == NULL) {
+        printf("File does not exist\n");
+        get_reponse.type = 0xB3;
+    } else {
+        printf("File exists\n");
+        get_reponse.type = 0xB2;
+    }
+    get_reponse.length = sizeof(struct message_s);
+    if ((len = send(client_sd, &get_reponse, sizeof(struct message_s), 0)) < 0) {
+        printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+        exit(0);
+    }
+    if (get_reponse.type == 0xB2) {
+        int file_size = get_file_size(fp);
+        char *file_payload = (char *) calloc(file_size, sizeof(char *));
+        fread(file_payload, file_size, 1, fp);
+        send_file(client_sd, file_size, file_payload);
+        
+        printf("Sent file contents:\n");
+        printf("%s\n", file_payload);
+    }
+    fclose(fp);
+    free(file_name);
 }
 
 void list(int client_sd) {
