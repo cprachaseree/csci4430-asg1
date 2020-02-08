@@ -94,11 +94,11 @@ void put_file(int client_sd, int file_name_length) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         exit(0);
     }
-    int file_size =  check_file_data_header(client_sd) - sizeof(struct message_s); 
-    char *file_payload = (char *) calloc(file_size, sizeof(char));
-    receive_file(client_sd, file_size, file_payload);
-    printf("File received\n");
-    printf("%s\n", file_payload);
+    int file_size =  check_file_data_header(client_sd) - sizeof(struct message_s);
+    char *file_path = (char *) calloc(5 + file_name_length, sizeof(char));
+    strcpy(file_path, "data/");
+    strcat(file_path, file_name); 
+    receive_file(client_sd, file_size, file_path);
 }
 
 void get_file(int client_sd, int file_name_length) {
@@ -109,32 +109,32 @@ void get_file(int client_sd, int file_name_length) {
         exit(0);
     }
     printf("File name received is %s\n", file_name);
-
-    struct message_s get_reponse;
-    memset(&get_reponse, 0, sizeof(struct message_s));
-    strcpy(get_reponse.protocol, "myftp");
-    FILE *fp;
-    if ((fp = fopen(file_name, "r")) == NULL) {
+    // create get reply
+    struct message_s get_reply;
+    memset(&get_reply, 0, sizeof(struct message_s));
+    strcpy(get_reply.protocol, "myftp");
+    char* file_path = (char *) calloc(5 + file_name_length, sizeof(char));
+    strcpy(file_path, "data/");
+    strcat(file_path, file_name);
+    int file_size;
+    if ((file_size = get_file_size(file_path)) == -1) {
         printf("File does not exist\n");
-        get_reponse.type = 0xB3;
+        get_reply.type = 0xB3;
     } else {
         printf("File exists\n");
-        get_reponse.type = 0xB2;
+        get_reply.type = 0xB2;
     }
-    get_reponse.length = sizeof(struct message_s);
-    if ((len = send(client_sd, &get_reponse, sizeof(struct message_s), 0)) < 0) {
+    get_reply.length = sizeof(struct message_s);
+    // send get reply header
+    if ((len = send(client_sd, &get_reply, sizeof(struct message_s), 0)) < 0) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         exit(0);
     }
-    if (get_reponse.type == 0xB2) {
-        int file_size = get_file_size(fp);
-        char *file_payload = (char *) calloc(file_size, sizeof(char *));
-        fread(file_payload, file_size, 1, fp);
-        send_file(client_sd, file_size, file_payload);
-        
-        printf("Sent file contents:\n");
-        printf("%s\n", file_payload);
+    // send payload in chunks
+    if (get_reply.type == 0xB2) {
+        send_file_header(client_sd, file_size);
+        printf("File size is %d\n", file_size);
+        send_file(client_sd, file_size, file_path);
     }
-    fclose(fp);
-    free(file_name);
+    free(file_path);
 }
