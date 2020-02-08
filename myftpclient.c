@@ -4,6 +4,7 @@ char *check_arg(int argc, char *argv[]);
 void print_arg_error();
 int check_port_number(int port_num_string);
 void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
+void list(int sd);
 
 int main(int argc, char *argv[]) {
 	char *user_cmd = check_arg(argc, argv);
@@ -48,15 +49,15 @@ int main(int argc, char *argv[]) {
 void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
 	strncpy((*client_request_message).protocol, "myftp", 5);
 	if (strcmp(user_cmd, "list") == 0) {
-		(*client_request_message).type = 0xA1;
+		client_request_message->type = 0xA1;
 	} else if (strcmp(user_cmd, "get") == 0) {
-		(*client_request_message).type = 0xB1;
+		client_request_message->type = 0xB1;
 	} else if (strcmp(user_cmd, "put") == 0) {
-		(*client_request_message).type = 0xC1;
+		client_request_message->type = 0xC1;
 	}
 	(*client_request_message).length = sizeof(struct message_s);
 	if (strcmp(user_cmd, "list") != 0) {
-		(*client_request_message).length += strlen(argv[4]);
+		client_request_message->length += strlen(argv[4]);
 	}
 }
 
@@ -84,4 +85,21 @@ char *check_arg(int argc, char *argv[]) {
 		print_arg_error("client");
 	}
 	return user_cmd;
+}
+
+void list(int sd) {
+	int len;
+	struct message_s header;
+	if((len = recv(sd, &header, sizeof(header), 0)) < 0){
+		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+		exit(0);
+	}
+	int payload_len = header.length - sizeof(header);
+	char* buf;
+	buf = malloc(sizeof(payload_len));
+	if((len = recv(sd, buf, strlen(buf), 0)) < 0){
+		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+		exit(0);
+	}
+	printf("%s", buf);
 }
