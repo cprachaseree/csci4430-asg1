@@ -51,8 +51,6 @@ void send_file(int destination_sd, int file_size, char *file_name) {
         	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         	exit(0);
     	}
-    	printf("Sent file contents:\n");
-        printf("%s\n", buffer);
     }
     int last_contents_size = file_size % BUFFER_SIZE;
     if (last_contents_size != 0) {
@@ -62,8 +60,6 @@ void send_file(int destination_sd, int file_size, char *file_name) {
 	        printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 	        exit(0);
 	    }
-	    printf("Sent file contents last:\n");
-	    printf("%s\n", last_contents);
     }
     fclose(fp);
     printf("Sent file done.\n");
@@ -82,8 +78,6 @@ void receive_file(int source_sd, int file_size, char *file_name) {
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	        exit(0);
 		}
-    	printf("Received file contents:\n");
-		printf("%s\n", buffer);
 		fprintf(fp, "%s", buffer);
     }
     int last_contents_size = file_size % BUFFER_SIZE;
@@ -93,8 +87,6 @@ void receive_file(int source_sd, int file_size, char *file_name) {
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         	exit(0);
 		}
-    	printf("Received file contents last:\n");
-    	printf("%s\n", last_contents);
 		fprintf(fp, "%s", last_contents);
     }
     fclose(fp);
