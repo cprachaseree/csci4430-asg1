@@ -65,7 +65,6 @@ void* connection(void* client_sd) {
         exit(0);
     }
 	int reply_length = ntohl(client_request_message.length);
-    printf("Message length: %d\n", reply_length);
     if (client_request_message.type == 0xA1) {
         printf("Received list request\n");
 		list(*((int*) client_sd));

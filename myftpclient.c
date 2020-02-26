@@ -96,19 +96,15 @@ char *check_arg(int argc, char *argv[]) {
 	}
 	char *user_cmd = argv[3];
 	if (strcmp(user_cmd, "list") != 0 && strcmp(user_cmd, "get") != 0 && strcmp(user_cmd, "put") != 0) {
-		printf("1\n");
 		print_arg_error("client");
 	} 
 	if (strcmp(user_cmd, "list") == 0 && argc != 4) {
-		printf("2\n");
 		print_arg_error("client");
 	}
 	if (strcmp(user_cmd, "get") == 0 && argc != 5) {
-		printf("3\n");
 		print_arg_error("client");
 	}
 	if (strcmp(user_cmd, "put") == 0 && argc != 5) {
-		printf("4\n");
 		print_arg_error("client");
 	}
 	return user_cmd;

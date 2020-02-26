@@ -79,7 +79,6 @@ void receive_file(int source_sd, int file_size, char *file_name) {
 	        exit(0);
 		}
 		fwrite(buffer, sizeof(buffer[0]), BUFFER_SIZE, fp);
-		//fprintf(fp, "%s", buffer);
     }
     int last_contents_size = file_size % BUFFER_SIZE;
     if (last_contents_size != 0) {
@@ -89,7 +88,6 @@ void receive_file(int source_sd, int file_size, char *file_name) {
         	exit(0);
 		}
 		fwrite(last_contents, sizeof(last_contents[0]), last_contents_size, fp);
-		//fprintf(fp, "%s", last_contents);
     }
     fclose(fp);
     printf("Received file done.\n");
