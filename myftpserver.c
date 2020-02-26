@@ -64,18 +64,17 @@ void* connection(void* client_sd) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    client_request_message.length = ntohl(client_request_message.length);
-    printf("Message length: %d\n", client_request_message.length);
-    printf("Client request message size: %d\n", sizeof(client_request_message));
+	int reply_length = ntohl(client_request_message.length);
+    printf("Message length: %d\n", reply_length);
     if (client_request_message.type == 0xA1) {
         printf("Received list request\n");
 		list(*((int*) client_sd));
     } else if (client_request_message.type == 0xB1) {
         printf("Received get request\n");
-        get_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
+        get_file(*((int*) client_sd), reply_length - sizeof(client_request_message));
     } else if (client_request_message.type == 0xC1) {
         printf("Received put request\n");
-        put_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
+        put_file(*((int*) client_sd), reply_length - sizeof(client_request_message));
     }
 
 }
