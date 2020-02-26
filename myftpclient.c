@@ -11,6 +11,12 @@ int main(int argc, char *argv[]) {
 	char *SERVER_IP_ADDRESS = argv[1];
 	int SERVER_PORT_NUMBER = port_num_to_int(argv[2], "client");
 	char *file_name = argv[4];
+	if (strcmp(user_cmd, "put") == 0) {
+		if (get_file_size(file_name) == -1) {
+			printf("File does not exist\n");
+			exit(0);
+		}
+	}
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
         printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
@@ -26,12 +32,7 @@ int main(int argc, char *argv[]) {
 		exit(0);
 	}
 	printf("Connected client\n");
-	if (strcmp(user_cmd, "put") == 0) {
-		if (get_file_size(file_name) == -1) {
-			printf("File does not exist\n");
-			exit(0);
-		}
-	}
+
 	struct message_s client_request_message;
 	memset(&client_request_message, 0, sizeof(struct message_s));
 	set_message_type(&client_request_message, user_cmd, argv);
