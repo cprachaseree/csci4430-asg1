@@ -44,7 +44,8 @@ void send_file(int destination_sd, int file_size, char *file_name) {
     FILE *fp;
     fp = fopen(file_name, "r");
     char buffer[BUFFER_SIZE];
-    for (int i = 0; i < file_size / BUFFER_SIZE; i++) {
+	int i;
+    for (i = 0; i < file_size / BUFFER_SIZE; i++) {
     	fread(buffer, BUFFER_SIZE, 1, fp);
     	if ((len = send(destination_sd, buffer, BUFFER_SIZE, 0)) < 0) {
         	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
@@ -75,7 +76,8 @@ void receive_file(int source_sd, int file_size, char *file_name) {
 	FILE *fp;
     fp = fopen(file_name, "w");
     char buffer[BUFFER_SIZE];
-    for (int i = 0; i < file_size / BUFFER_SIZE; i++) {
+	int i;
+    for (i = 0; i < file_size / BUFFER_SIZE; i++) {
     	if ((len = recv(source_sd, buffer, BUFFER_SIZE, 0)) < 0) {
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	        exit(0);
