@@ -26,6 +26,12 @@ int main(int argc, char *argv[]) {
 		exit(0);
 	}
 	printf("Connected client\n");
+	if (strcmp(user_cmd, "put") == 0) {
+		if (get_file_size(file_name) == -1) {
+			printf("File does not exist\n");
+			exit(0);
+		}
+	}
 	struct message_s client_request_message;
 	memset(&client_request_message, 0, sizeof(struct message_s));
 	set_message_type(&client_request_message, user_cmd, argv);
@@ -43,6 +49,7 @@ int main(int argc, char *argv[]) {
 			exit(0);
 		}
 	}
+
 	// wait for the resply headers
 	struct message_s server_reply;
 	memset(&server_reply, 0, sizeof(struct message_s));
