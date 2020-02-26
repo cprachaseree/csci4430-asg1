@@ -86,6 +86,7 @@ void set_message_type(struct message_s *client_request_message,char *user_cmd, c
 	if (strcmp(user_cmd, "list") != 0) {
 		client_request_message->length += strlen(argv[4]);
 	}
+	client_request_message->length = htonl(sizeof(struct message_s));
 }
 
 char *check_arg(int argc, char *argv[]) {

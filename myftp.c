@@ -29,7 +29,7 @@ void send_file_header(int destination_sd, int file_size) {
     memset(&file_data, 0, sizeof(struct message_s));
     strcpy(file_data.protocol, "myftp");
     file_data.type = 0xFF;
-    file_data.length = file_size + sizeof(struct message_s);
+    file_data.length = htonl(file_size + sizeof(struct message_s));
     if ((len = send(destination_sd, &file_data, sizeof(struct message_s), 0)) < 0) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         exit(0);
@@ -109,7 +109,7 @@ int check_file_data_header(int source_sd) {
 		printf("Invalid header type or protocol.\n");
 		exit(0);
 	}
-	return file_data.length;
+	return ntohl(file_data.length);
 }
 
 // used in client when put and in server when get

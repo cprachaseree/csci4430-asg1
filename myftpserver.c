@@ -64,16 +64,16 @@ void* connection(void* client_sd) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    printf("Message length: %d\n", client_request_message.length);
+    printf("Message length: %d\n", ntohl(client_request_message.length));
     if (client_request_message.type == 0xA1) {
         printf("Received list request\n");
 		list(*((int*) client_sd));
     } else if (client_request_message.type == 0xB1) {
         printf("Received get request\n");
-        get_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
+        get_file(*((int*) client_sd), ntohl(client_request_message.length) - sizeof(client_request_message));
     } else if (client_request_message.type == 0xC1) {
         printf("Received put request\n");
-        put_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
+        put_file(*((int*) client_sd), ntohl(client_request_message.length) - sizeof(client_request_message));
     }
 
 }
@@ -90,7 +90,7 @@ void put_file(int client_sd, int file_name_length) {
     memset(&put_response, 0, sizeof(struct message_s));
     strcpy(put_response.protocol, "myftp");
     put_response.type = 0xC2;
-    put_response.length = sizeof(put_response);
+    put_response.length = htonl(sizeof(put_response));
     if ((len = send(client_sd, &put_response, sizeof(struct message_s), 0)) < 0) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         exit(0);
@@ -125,7 +125,7 @@ void get_file(int client_sd, int file_name_length) {
         printf("File exists\n");
         get_reply.type = 0xB2;
     }
-    get_reply.length = sizeof(struct message_s);
+    get_reply.length = htonl(sizeof(struct message_s));
     // send get reply header
     if ((len = send(client_sd, &get_reply, sizeof(struct message_s), 0)) < 0) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
