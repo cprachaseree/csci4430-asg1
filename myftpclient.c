@@ -113,7 +113,6 @@ char *check_arg(int argc, char *argv[]) {
 void list(int sd, int payload_size) {
 	int len;
 	char* buf;
-	printf("payload size: %d\n", payload_size);
 	buf = malloc(sizeof(payload_size));
 	if((len = recv(sd, buf, payload_size, 0)) < 0){
 		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
