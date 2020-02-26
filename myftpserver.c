@@ -148,25 +148,25 @@ void list(int client_sd) {
 	struct dirent *entry;
     DIR *folder;
     folder = opendir("./data");
-	char* all_filename;
+	char all_filename[512];
 	int size = 1; // include null-terminated symbol
     while(entry = readdir(folder)) {
 		char* filename;
 		filename = entry->d_name;
 		if(strcmp(filename, ".") != 0 && strcmp(filename, "..") != 0) {
-			size += strlen(entry->d_name);
-			all_filename = realloc(all_filename, size);
+			size += strlen(entry->d_name) + 1;
 			strcat(all_filename, filename);
 			strcat(all_filename, "\n");
 		}
     }
-	reply.length = sizeof(reply) + strlen(all_filename);
+	all_filename[size] = 0;
+	reply.length = sizeof(reply) + size;
 	int len;
 	if((len = send(client_sd, &reply, sizeof(reply), 0)) < 0){
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 		exit(0);
 	}
-	if((len = send(client_sd, all_filename, strlen(all_filename), 0)) < 0){
+	if((len = send(client_sd, all_filename, size, 0)) < 0){
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 		exit(0);
 	}
