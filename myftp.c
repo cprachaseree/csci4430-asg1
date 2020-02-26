@@ -109,7 +109,8 @@ int check_file_data_header(int source_sd) {
 		printf("Invalid header type or protocol.\n");
 		exit(0);
 	}
-	return ntohl(file_data.length);
+	int ret = ntohl(file_data.length);
+	return ret;
 }
 
 // used in client when put and in server when get

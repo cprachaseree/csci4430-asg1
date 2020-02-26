@@ -64,16 +64,18 @@ void* connection(void* client_sd) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    printf("Message length: %d\n", ntohl(client_request_message.length));
+    client_request_message.length = ntohl(client_request_message.length);
+    printf("Message length: %d\n", client_request_message.length);
+    printf("Client request message size: %d\n", sizeof(client_request_message));
     if (client_request_message.type == 0xA1) {
         printf("Received list request\n");
 		list(*((int*) client_sd));
     } else if (client_request_message.type == 0xB1) {
         printf("Received get request\n");
-        get_file(*((int*) client_sd), ntohl(client_request_message.length) - sizeof(client_request_message));
+        get_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
     } else if (client_request_message.type == 0xC1) {
         printf("Received put request\n");
-        put_file(*((int*) client_sd), ntohl(client_request_message.length) - sizeof(client_request_message));
+        put_file(*((int*) client_sd), client_request_message.length - sizeof(client_request_message));
     }
 
 }
@@ -96,13 +98,14 @@ void put_file(int client_sd, int file_name_length) {
         exit(0);
     }
     int file_size =  check_file_data_header(client_sd) - sizeof(struct message_s);
-    char *file_path = (char *) calloc(5 + file_name_length, sizeof(char));
+    char *file_path = (char *) calloc(5 + ntohl(file_name_length), sizeof(char));
     strcpy(file_path, "data/");
     strcat(file_path, file_name); 
     receive_file(client_sd, file_size, file_path);
 }
 
 void get_file(int client_sd, int file_name_length) {
+    printf("%d is file name length\n", file_name_length);
     char *file_name = (char *) calloc(file_name_length, sizeof(char));
     int len;
     if ((len = recv(client_sd, file_name, file_name_length, 0)) < 0) {
