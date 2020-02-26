@@ -160,7 +160,7 @@ void list(int client_sd) {
 		}
     }
 	all_filename[size] = 0;
-	reply.length = sizeof(reply) + size;
+	reply.length = htonl(sizeof(reply) + size);
 	int len;
 	if((len = send(client_sd, &reply, sizeof(reply), 0)) < 0){
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);

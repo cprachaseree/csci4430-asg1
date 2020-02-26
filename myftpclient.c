@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
 		send_file_header(sd, file_size);
         send_file(sd, file_size, file_name);
 	} else if (server_reply.type == 0xA2) {
-		int payload_size = server_reply.length - sizeof(server_reply); 
+		int payload_size = ntohl(server_reply.length) - sizeof(server_reply); 
 		list(sd, payload_size);
 	}
 }
