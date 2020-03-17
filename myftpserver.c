@@ -2,6 +2,7 @@
 #include <pthread.h>
 
 void check_arg(int argc);
+void read_serverconfig(char *serverconfig_name, int *n, int *k, int *block_size, int *server_id, int *PORT_NUMBER);
 int check_port_num(int arg_num, char *port_number_string);
 void* connection(void* client_sd);
 void check_arg(int argc);
@@ -10,8 +11,12 @@ void get_file(int client_sd, int file_name_length);
 void put_file(int client_sd, int file_name_length);
 
 int main(int argc, char *argv[]) {
+    int n, k, block_size, server_id, PORT_NUMBER;
     check_arg(argc);
-    int PORT_NUMBER = port_num_to_int(argv[1], "server");
+    // int PORT_NUMBER = port_num_to_int(argv[1], "server");
+    read_serverconfig(argv[1], &n, &k, &block_size, &server_id, &PORT_NUMBER);
+    
+    
     // open socket
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
@@ -54,6 +59,21 @@ void check_arg(int argc) {
     if (argc != 2) {
     print_arg_error("server");
   }
+}
+
+void read_serverconfig(char *serverconfig_name, int *n, int *k, int *block_size, int *server_id, int *PORT_NUMBER) {
+    FILE* serverconfig_fp;
+    if ((serverconfig_fp = fopen(serverconfig_name, "r")) == NULL) {
+        printf("Unable to open file %s\n", serverconfig_name);
+        print_arg_error("server");
+        exit(0);
+    }
+    if (fscanf(serverconfig_fp, "%d\n%d\n%d\n%d\n%d\n", n, k, block_size, server_id, PORT_NUMBER) != 5) {
+        printf("Error in serverconfig.txt.\n");
+        exit(0);
+    }
+    printf("n=%d\nk=%d\nblock_size=%d\nserver_id=%d\nPORT_NUMBER=%d\n", *n, *k, *block_size, *server_id, *PORT_NUMBER);
+    fclose(serverconfig_fp);
 }
 
 void* connection(void* client_sd) {

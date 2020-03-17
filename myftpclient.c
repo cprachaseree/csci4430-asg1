@@ -1,22 +1,25 @@
 #include "myftp.h"
 
 char *check_arg(int argc, char *argv[]);
+void read_clientconfig(char *clientconfig_name, int *n, int *k, int *block_size, char **serverip_port_addr);
 void print_arg_error();
 int check_port_number(int port_num_string);
 void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
 void list(int sd, int payload_size);
 
 int main(int argc, char *argv[]) {
+	int n, k, block_size;
+	char **serverip_port_addr, *filename;
 	char *user_cmd = check_arg(argc, argv);
-	char *SERVER_IP_ADDRESS = argv[1];
-	int SERVER_PORT_NUMBER = port_num_to_int(argv[2], "client");
-	char *file_name = argv[4];
+	read_clientconfig(argv[1], &n, &k, &block_size, serverip_port_addr);
+
 	if (strcmp(user_cmd, "put") == 0) {
-		if (get_file_size(file_name) == -1) {
+		if (get_file_size(argv[4]) == -1) {
 			printf("File does not exist\n");
 			exit(0);
 		}
 	}
+	/*
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
         printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
@@ -71,6 +74,7 @@ int main(int argc, char *argv[]) {
 		int payload_size = ntohl(server_reply.length) - sizeof(server_reply); 
 		list(sd, payload_size);
 	}
+	*/
 }
 
 void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
@@ -90,24 +94,49 @@ void set_message_type(struct message_s *client_request_message,char *user_cmd, c
 }
 
 char *check_arg(int argc, char *argv[]) {
-	if (argc != 4 && argc != 5) {
+	if (argc != 3 && argc != 4) {
 		printf("0\n");
 		print_arg_error("client");
 	}
-	char *user_cmd = argv[3];
+	char *user_cmd = argv[2];
 	if (strcmp(user_cmd, "list") != 0 && strcmp(user_cmd, "get") != 0 && strcmp(user_cmd, "put") != 0) {
 		print_arg_error("client");
 	} 
-	if (strcmp(user_cmd, "list") == 0 && argc != 4) {
+	if (strcmp(user_cmd, "list") == 0 && argc != 3) {
 		print_arg_error("client");
 	}
-	if (strcmp(user_cmd, "get") == 0 && argc != 5) {
+	if (strcmp(user_cmd, "get") == 0 && argc != 4) {
 		print_arg_error("client");
 	}
-	if (strcmp(user_cmd, "put") == 0 && argc != 5) {
+	if (strcmp(user_cmd, "put") == 0 && argc != 4) {
 		print_arg_error("client");
 	}
 	return user_cmd;
+}
+
+void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, char **serverip_port_addr) {
+    FILE *clientconfig_fp;
+    size_t length;
+    int char_length;
+    if ((clientconfig_fp = fopen(clientconfig_name, "r")) == NULL) {
+        printf("Unable to open file %s\n", clientconfig_name);
+        print_arg_error("client");
+        exit(0);
+    }
+    if (fscanf(clientconfig_fp, "%d\n%d\n%d\n", n, k, block_size) != 3) {
+        printf("Error in clientconfig.txt.\n");
+        exit(0);
+    }
+    printf("n=%d\nk=%d\nblock_size=%d\n", *n, *k, *block_size);
+    serverip_port_addr = (char **) calloc(*n, sizeof(char*));
+    for (int i = 0; i < *n; i++) {
+    	char_length = getline(&serverip_port_addr[i], &length, clientconfig_fp);
+    	if (serverip_port_addr[i][char_length-1] == '\n') {
+    		serverip_port_addr[i][char_length-1] = '\0';
+    	}
+    	printf("%s\n", serverip_port_addr[i]);
+    }
+    fclose(clientconfig_fp);
 }
 
 void list(int sd, int payload_size) {
