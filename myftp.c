@@ -145,7 +145,7 @@ int chunk_file(char *file_name, int n, int k, int block_size, Stripe **stripe) {
 	printf("File size: %d\n", file_size);
 	printf("num_of_stripes: %d\n", num_of_stripes);
 	*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
-	printf("%d is size of *stripe\n", sizeof(*stripe));
+	printf("%ld is size of *stripe\n", sizeof(*stripe));
 	for (i = 0; i < num_of_stripes; i++) {
 		// to be used so when the stripes are seperated we know which stripe id it is
 		((*stripe)[i]).sid = i;
@@ -188,4 +188,8 @@ void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_strip
 			printf("i: %d, parity: %s\n", i, ((*stripe)[i]).parity_block[j]);
 		}
 	}
+	free(encode_matrix);
+	free(errors_matrix);
+	free(invert_matrix);
+	free(tables);
 }

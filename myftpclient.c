@@ -1,17 +1,23 @@
 #include "myftp.h"
 
 char *check_arg(int argc, char *argv[]);
-void read_clientconfig(char *clientconfig_name, int *n, int *k, int *block_size, char **serverip_port_addr);
+void read_clientconfig(char *clientconfig_name, int *n, int *k, int *block_size, char ***serverip_port_addr);
 void print_arg_error();
 int check_port_number(int port_num_string);
 void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
+void init_ip_port(char* serverip_port_addr, char **ip, char **port);
 void list(int sd, int payload_size);
 
 int main(int argc, char *argv[]) {
 	int n, k, block_size, num_of_stripes;
+	int *server_sd;
 	char **serverip_port_addr;
-	char *user_cmd = check_arg(argc, argv);
-	read_clientconfig(argv[1], &n, &k, &block_size, serverip_port_addr);
+	char *user_cmd, **IP, **PORT;
+	int i;
+	struct sockaddr_in *server_addr;
+	
+	user_cmd = check_arg(argc, argv);
+	read_clientconfig(argv[1], &n, &k, &block_size, &serverip_port_addr);
 
 	if (strcmp(user_cmd, "put") == 0) {
 		if (get_file_size(argv[3]) == -1) {
@@ -21,16 +27,32 @@ int main(int argc, char *argv[]) {
 		Stripe *stripe;
 		// in myftp.c
 		num_of_stripes = chunk_file(argv[3], n, k, block_size, &stripe);
-		/*
-		for (int i = 0; i < num_of_stripes; i++) {
-			for (int j = 0; j < k; j++) {
-				printf("i: %d, data: %s\n", i, stripe[i].data_block[j]);
-			}
-		}*/
 		encode_data(n, k, block_size, &stripe, num_of_stripes);
 	}
-
-	/*
+	server_sd = (int *) calloc(n, sizeof(int));
+	server_addr = (struct sockaddr_in *) calloc(n, sizeof(server_addr));
+	IP = (char **) calloc(n, sizeof(char *));
+	PORT = (char **) calloc(n, sizeof(char *));
+	for (i = 0; i < n; i++) {
+		server_sd[i] = socket(AF_INET, SOCK_STREAM, 0);
+		if (server_sd[i] < 0) {
+        	printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
+        	return -1;
+		}
+		memset(&server_addr[i], 0, sizeof(server_addr[i]));
+		server_addr[i].sin_family = AF_INET;
+		init_ip_port(serverip_port_addr[i], &IP[i], &PORT[i]);
+		server_addr[i].sin_addr.s_addr = inet_addr(IP[i]);
+		server_addr[i].sin_port = htons(atoi(PORT[i]));
+		printf("IP: %s PORT: %s\n", IP[i], PORT[i]);
+		if (connect(server_sd[i],(struct sockaddr *) &server_addr[i],sizeof(server_addr[i])) < 0) {
+			printf("connection error: %s (Errno:%d)\n",strerror(errno),errno);
+			exit(0);
+		}
+		printf("Connected client to server ip and port %s\n", serverip_port_addr[i]);
+	}
+/*
+	
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
         printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
@@ -39,14 +61,13 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in server_addr;
 	memset(&server_addr, 0, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = inet_addr(SERVER_IP_ADDRESS);
-	server_addr.sin_port = htons(SERVER_PORT_NUMBER);
+	server_addr.sin_addr.s_addr = inet_addr("192.168.0.3");
+	server_addr.sin_port = htons(13567);
 	if (connect(sd,(struct sockaddr *)&server_addr,sizeof(server_addr)) < 0) {
 		printf("connection error: %s (Errno:%d)\n",strerror(errno),errno);
 		exit(0);
 	}
 	printf("Connected client\n");
-
 	struct message_s client_request_message;
 	memset(&client_request_message, 0, sizeof(struct message_s));
 	set_message_type(&client_request_message, user_cmd, argv);
@@ -125,7 +146,7 @@ char *check_arg(int argc, char *argv[]) {
 	return user_cmd;
 }
 
-void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, char **serverip_port_addr) {
+void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, char ***serverip_port_addr) {
     FILE *clientconfig_fp;
     size_t length;
     int char_length;
@@ -139,15 +160,37 @@ void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, 
         exit(0);
     }
     printf("n=%d\nk=%d\nblock_size=%d\n", *n, *k, *block_size);
-    serverip_port_addr = (char **) calloc(*n, sizeof(char*));
+    *serverip_port_addr = (char **) calloc(*n, sizeof(char*));
     for (int i = 0; i < *n; i++) {
-    	char_length = getline(&serverip_port_addr[i], &length, clientconfig_fp);
-    	if (serverip_port_addr[i][char_length-1] == '\n') {
-    		serverip_port_addr[i][char_length-1] = '\0';
+    	char_length = getline(&((*serverip_port_addr)[i]), &length, clientconfig_fp);
+    	if ((*serverip_port_addr)[i][char_length-1] == '\n') {
+    		(*serverip_port_addr)[i][char_length-1] = '\0';
     	}
-    	printf("%s\n", serverip_port_addr[i]);
+    	printf("%s\n", (*serverip_port_addr)[i]);
     }
     fclose(clientconfig_fp);
+}
+
+void init_ip_port(char* serverip_port_addr, char **ip, char **port) {
+	char *original_p;
+	int length, i;
+	printf("serverip_port_addr: %s\n", serverip_port_addr);
+	length = strlen(serverip_port_addr);
+	original_p = (char *) calloc(length, sizeof(char));
+	strcpy(original_p, serverip_port_addr);
+	for (i = 0; i < length; i++) {
+		if (serverip_port_addr[i] == ':') {
+			original_p[i] = '\0';
+			break;
+		}
+	}
+	i++;
+	*ip = (char *) calloc(i, sizeof(char));
+	*port = (char *) calloc(length - i, sizeof(char));
+	strcpy(*ip, original_p);
+	strcpy(*port, &serverip_port_addr[i]);
+	printf("IP: %s\n", *ip);
+	printf("PORT: %s\n", *port);
 }
 
 void list(int sd, int payload_size) {
