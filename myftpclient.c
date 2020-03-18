@@ -8,17 +8,28 @@ void set_message_type(struct message_s *client_message,char *user_cmd, char *arg
 void list(int sd, int payload_size);
 
 int main(int argc, char *argv[]) {
-	int n, k, block_size;
-	char **serverip_port_addr, *filename;
+	int n, k, block_size, num_of_stripes;
+	char **serverip_port_addr;
 	char *user_cmd = check_arg(argc, argv);
 	read_clientconfig(argv[1], &n, &k, &block_size, serverip_port_addr);
 
 	if (strcmp(user_cmd, "put") == 0) {
-		if (get_file_size(argv[4]) == -1) {
+		if (get_file_size(argv[3]) == -1) {
 			printf("File does not exist\n");
 			exit(0);
 		}
+		Stripe *stripe;
+		// in myftp.c
+		num_of_stripes = chunk_file(argv[3], n, k, block_size, &stripe);
+		/*
+		for (int i = 0; i < num_of_stripes; i++) {
+			for (int j = 0; j < k; j++) {
+				printf("i: %d, data: %s\n", i, stripe[i].data_block[j]);
+			}
+		}*/
+		encode_data(n, k, block_size, &stripe, num_of_stripes);
 	}
+
 	/*
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {

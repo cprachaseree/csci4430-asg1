@@ -125,3 +125,67 @@ int get_file_size(char *file_name) {
     fclose(fp);
     return file_size;
 }
+
+// init stripes by read data from the file into data_block in stripes
+// parity block will be used when encoding, calloc corresponding parity sizes
+// tested from client side
+int chunk_file(char *file_name, int n, int k, int block_size, Stripe **stripe) {
+	int file_size, num_of_stripes, data_block_no;
+	int i, j;
+	char *read_buffer;
+	FILE *fp;
+	file_size = get_file_size(file_name);
+	if (file_size == -1) {
+		printf("Invalid file: %s\n", file_name);
+	}
+	fp = fopen(file_name, "r");
+	data_block_no = n - k;
+	// get num of stripes based on file size, k, and block size
+	num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
+	printf("File size: %d\n", file_size);
+	printf("num_of_stripes: %d\n", num_of_stripes);
+	*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
+	printf("%d is size of *stripe\n", sizeof(*stripe));
+	for (i = 0; i < num_of_stripes; i++) {
+		// to be used so when the stripes are seperated we know which stripe id it is
+		((*stripe)[i]).sid = i;
+		((*stripe)[i]).data_block = (unsigned char **) calloc(k, sizeof(unsigned char *));
+		((*stripe)[i]).parity_block = (unsigned char **) calloc(n-k, sizeof(unsigned char *));
+		for (j = 0; j < n-k; j++) {
+			((*stripe)[i]).parity_block[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+		}
+		for (j = 0; j < k; j++) {
+			((*stripe)[i]).data_block[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+			fread(((*stripe)[i]).data_block[j], block_size, 1, fp);
+			printf("i: %d, data: %s\n", i, ((*stripe)[i]).data_block[j]);
+		}
+	}
+	fclose(fp);
+	return num_of_stripes;
+}
+
+// put parity info into each parity block for all stripes
+// print to check if parity has k blocks
+void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_stripes) {
+	uint8_t *encode_matrix , *errors_matrix, *invert_matrix, *tables;
+	int i, j;
+	encode_matrix = (uint8_t *) calloc(n * k, sizeof(uint8_t));
+	errors_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
+	invert_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
+	tables = (uint8_t *) calloc(32 * k * (n-k), sizeof(uint8_t));
+	// generate encoded matrix
+	gf_gen_rs_matrix(encode_matrix, n, k);
+	// generate expanded matrix (includes parity matrix)
+	ec_init_tables(k, n-k, &encode_matrix[k*k], tables);
+	// generate parity for all stripes
+	for (i = 0; i < num_of_stripes; i++) {
+		ec_encode_data(block_size, k, n-k, tables, ((*stripe)[i]).data_block, ((*stripe)[i]).parity_block);
+		printf("c: %d\n", i);
+		for (j = 0; j < k; j++) {
+			printf("i: %d, data: %s\n", i, ((*stripe)[i]).data_block[j]);
+		}
+		for (j = 0; j < n-k; j++) {
+			printf("i: %d, parity: %s\n", i, ((*stripe)[i]).parity_block[j]);
+		}
+	}
+}
