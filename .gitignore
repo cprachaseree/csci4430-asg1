@@ -2,3 +2,4 @@
 .vscode/
 clientconfig.txt
 serverconfig.txt
+/data
