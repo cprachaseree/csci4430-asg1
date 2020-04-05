@@ -66,21 +66,23 @@ void send_file(int destination_sd, int file_size, char *file_name) {
 }
 
 // used in server when get and in client when put
-void receive_file(int source_sd, int file_size, char *file_name) {
+void receive_file(int source_sd, int payload_size, char *file_name, int block_size) {
 	int len;
 	// receive file payload
 	FILE *fp;
     fp = fopen(file_name, "w");
-    char buffer[BUFFER_SIZE];
+    char* buffer = (char *)calloc(block_size, sizeof(char));
 	int i;
-    for (i = 0; i < file_size / BUFFER_SIZE; i++) {
-    	if ((len = recv(source_sd, buffer, BUFFER_SIZE, 0)) < 0) {
+    for (i = 0; i < payload_size / block_size + 1; i++) {
+    	if ((len = recv(source_sd, buffer, block_size, 0)) < 0) {
+    		memset(buffer, 0, sizeof(char));
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	        exit(0);
 		}
-		fwrite(buffer, sizeof(buffer[0]), BUFFER_SIZE, fp);
+		fwrite(buffer, sizeof(buffer[0]), block_size, fp);
     }
-    int last_contents_size = file_size % BUFFER_SIZE;
+    /*
+    int last_contents_size = file_size % block_size;
     if (last_contents_size != 0) {
     	char *last_contents = (char *) calloc (last_contents_size, sizeof(char));
     	if ((len = recv(source_sd, last_contents, last_contents_size, 0)) < 0) {
@@ -88,7 +90,7 @@ void receive_file(int source_sd, int file_size, char *file_name) {
         	exit(0);
 		}
 		fwrite(last_contents, sizeof(last_contents[0]), last_contents_size, fp);
-    }
+    }*/
     fclose(fp);
     printf("Received file done.\n");
 }
@@ -193,3 +195,7 @@ void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_strip
 	free(invert_matrix);
 	free(tables);
 }
+/*
+void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_stripes) {
+
+}*/

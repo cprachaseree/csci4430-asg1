@@ -9,13 +9,13 @@ void check_arg(int argc);
 void list(int client_sd);
 void get_file(int client_sd, int file_name_length);
 void put_file(int client_sd, int file_name_length);
+void store_metadata(int file_size, char *file_name, int file_name_length);
 
 int main(int argc, char *argv[]) {
     int n, k, block_size, server_id, PORT_NUMBER;
     check_arg(argc);
-    // int PORT_NUMBER = port_num_to_int(argv[1], "server");
-    read_serverconfig(argv[1], &n, &k, &block_size, &server_id, &PORT_NUMBER);
     
+    read_serverconfig(argv[1], &n, &k, &block_size, &server_id, &PORT_NUMBER);
     
     // open socket
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
@@ -115,11 +115,25 @@ void put_file(int client_sd, int file_name_length) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         exit(0);
     }
+    // get data from myftpclient put()
     int file_size =  check_file_data_header(client_sd) - sizeof(struct message_s);
-    char *file_path = (char *) calloc(5 + ntohl(file_name_length), sizeof(char));
-    strcpy(file_path, "data/");
-    strcat(file_path, file_name); 
-    receive_file(client_sd, file_size, file_path);
+    int payload_size = check_file_data_header(client_sd) - sizeof(struct message_s);
+    int block_size = check_file_data_header(client_sd) - sizeof(struct message_s);
+    int stripeid = check_file_data_header(client_sd) - sizeof(struct message_s);
+    printf("File size is %d\n", file_size);
+    printf("Payload size is %d\n", payload_size);
+    printf("Stripeid is %d\n", stripeid);
+    // store file size to metadata folder with same file name
+    store_metadata(file_size, file_name, file_name_length);
+    // store actual data into data/filename_stripeid
+    // make file path name
+    int stripeid_digits = snprintf(0,0,"%+d", stripeid) - 1;
+    int file_path_length = 5 + ntohl(file_name_length) + 1 + stripeid_digits;
+    char *file_path = (char *) calloc(file_path_length, sizeof(char));
+    snprintf(file_path, file_path_length, "data/%s_%d", file_name, stripeid);
+    printf("File path is %s\n", file_path);
+    // store the data
+    receive_file(client_sd, file_size, file_path, block_size);
 }
 
 void get_file(int client_sd, int file_name_length) {
@@ -191,4 +205,21 @@ void list(int client_sd) {
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 		exit(0);
 	}
+}
+
+void store_metadata(int file_size, char *file_name, int file_name_length){
+    FILE *fp;
+    char* file_path;
+    mkdir("/metadata", 0777);
+    file_path = (char *) calloc(9 + file_name_length, sizeof(char));
+    strcpy(file_path, "metadata/");
+    strcat(file_path, file_name);
+    if ((fp = fopen(file_path, "w")) == NULL ) {
+        printf("Error opening metadata file. Program terminated\n");
+        exit(0);
+    }
+    printf("file_size: %d\n", file_size);
+    fprintf(fp, "%d\n", file_size);
+    fclose(fp);
+    free(file_path);
 }

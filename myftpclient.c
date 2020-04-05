@@ -7,26 +7,29 @@ int check_port_number(int port_num_string);
 void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
 void init_ip_port(char* serverip_port_addr, char **ip, char **port);
 void list(int sd, int payload_size);
+void put(int sd, int i, int n, int k, Stripe *stripe,
+	int num_of_stripes, char *file_name, int file_size, int block_size);
 
 int main(int argc, char *argv[]) {
 	int n, k, block_size, num_of_stripes, sd;
 	int *server_sd, num_of_server_sd;
 	char **serverip_port_addr;
-	char *user_cmd, **IP, **PORT;
-	int i;
+	char *user_cmd, *file_name, **IP, **PORT;
+	int i, len;
 	struct sockaddr_in *server_addr;
 	fd_set fds;
 	int maxfd;
 	
 	user_cmd = check_arg(argc, argv);
+	file_name = argv[3];
 	read_clientconfig(argv[1], &n, &k, &block_size, &serverip_port_addr);
 
+	Stripe *stripe;
 	if (strcmp(user_cmd, "put") == 0) {
-		if (get_file_size(argv[3]) == -1) {
+		if (get_file_size(file_name) == -1) {
 			printf("File does not exist\n");
 			exit(0);
-		}
-		Stripe *stripe;
+		}	
 		// in myftp.c
 		num_of_stripes = chunk_file(argv[3], n, k, block_size, &stripe);
 		encode_data(n, k, block_size, &stripe, num_of_stripes);
@@ -61,8 +64,6 @@ int main(int argc, char *argv[]) {
 		free(IP[i]);
 		free(PORT[i]);
 	}
-	//free(IP);
-	//free(PORT);
 	// Select multiple server sd descriptors to maintain
 	// find max fd
 	maxfd = -1;
@@ -85,7 +86,6 @@ int main(int argc, char *argv[]) {
 
 			if (FD_ISSET(sd, &fds)) {
 				printf("server id %d\n", i);
-				fflush(stdout);
 				// send request
 				struct message_s client_request_message;
 				memset(&client_request_message, 0, sizeof(struct message_s));
@@ -103,49 +103,37 @@ int main(int argc, char *argv[]) {
 					}
 				}
 				// recv response
+				struct message_s server_reply;
+				memset(&server_reply, 0, sizeof(struct message_s));
+				if ((len = recv(sd, &server_reply, sizeof(struct message_s), 0)) < 0) {
+					printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+			        exit(0);
+				}
 				// send/recv file from this server sd
-
+				if (server_reply.type == 0xB3) {
+					// no file
+					printf("File does not exist from server socket %d\n", sd);
+				} else if (server_reply.type == 0xB2) {
+					// for get file 
+					int file_size = check_file_data_header(sd) - sizeof(struct message_s);
+					//receive_file(sd, file_size, file_name);
+				} else if (server_reply.type == 0xC2) {
+					// for put file
+					int file_size = get_file_size(file_name);
+					// 
+					put(sd, i, n, k, stripe, num_of_stripes, file_name, file_size, block_size);
+					
+				} else if (server_reply.type == 0xA2) {
+					// for list file
+					int payload_size = ntohl(server_reply.length) - sizeof(server_reply); 
+					list(sd, payload_size);
+				}
 			}
 		}
 		// somehow has to break after finishing all server sd
 		break;
 	}
-	/*
-	int len;
-	if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0)	{
-		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
-		exit(0);
-	}
-	// send payload if get or put
-	if (strcmp(user_cmd, "list") != 0) {
-		printf("File name %s\n", file_name);
-		if ((len = send(sd, file_name, strlen(file_name), 0)) < 0) {
-			printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
-			exit(0);
-		}
-	}
-
-	// wait for the resply headers
-	struct message_s server_reply;
-	memset(&server_reply, 0, sizeof(struct message_s));
-	if ((len = recv(sd, &server_reply, sizeof(struct message_s), 0)) < 0) {
-		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
-        exit(0);
-	}
-	if (server_reply.type == 0xB3) {
-		printf("File does not exist\n");
-	} else if (server_reply.type == 0xB2) {
-		int file_size = check_file_data_header(sd) - sizeof(struct message_s);
-		receive_file(sd, file_size, file_name);
-	} else if (server_reply.type == 0xC2) {
-		int file_size = get_file_size(file_name);
-		send_file_header(sd, file_size);
-        send_file(sd, file_size, file_name);
-	} else if (server_reply.type == 0xA2) {
-		int payload_size = ntohl(server_reply.length) - sizeof(server_reply); 
-		list(sd, payload_size);
-	}
-	*/
+	// if get have to combine and decode the files
 }
 
 void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
@@ -242,3 +230,44 @@ void list(int sd, int payload_size) {
 	}
 	printf("%s", buf);
 }
+
+void put(int sd, int i, int n, int k, Stripe *stripe,
+	int num_of_stripes, char *file_name, int file_size, int block_size) {
+	//send_file_header(sd, file_size);
+	// send_file(sd, file_size, file_name);
+	int payload_size, j, len;
+	char c;
+	// send file size for server to store in metadata
+    printf("File size is %d\n", file_size);
+	payload_size = num_of_stripes * block_size;
+	printf("Payload size is %d\n", payload_size);
+	printf("Stripeid (i) is %d\n", i);
+	send_file_header(sd, file_size);
+	// send size of stripes
+	send_file_header(sd, payload_size);
+	// send block size
+	send_file_header(sd, block_size);
+	// send stripe id
+	send_file_header(sd, i);
+	// check if should send data_block or parity_block
+	if (i < k) {
+		c = 'd';
+	} else {
+		c = 'p';
+	}
+	// send all data_block or parity_block along the column
+	for (j = 0; j < num_of_stripes; j++) {
+		if (c == 'd') {
+			if ((len = send(sd, stripe[j].data_block[i], block_size, 0)) < 0) {
+	        	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+	        	exit(0);
+	    	}
+		} else if (c == 'p') {
+			if ((len = send(sd, stripe[j].parity_block[i - k], block_size, 0)) < 0) {
+	        	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+	        	exit(0);
+	    	}
+		}
+	}
+}
+
