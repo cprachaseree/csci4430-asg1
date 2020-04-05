@@ -4,9 +4,9 @@
 void print_arg_error(char *role) {
 	printf("Invalid Arguments\n");
 	if (strcmp(role, "server") == 0) {
-		printf("Usage: ./server serverconfig.txt\n");
+		printf("Usage: ./server <server config file>\n");
 	} else if (strcmp(role, "client") == 0) {
-		printf("Usage: ./client clientconfig.txt <list|get|put> <file>\n");
+		printf("Usage: ./client <client config file> <list|get|put> <file>\n");
 	}
 	printf("Program terminated.\n");
 	exit(0);

@@ -9,12 +9,14 @@ void init_ip_port(char* serverip_port_addr, char **ip, char **port);
 void list(int sd, int payload_size);
 
 int main(int argc, char *argv[]) {
-	int n, k, block_size, num_of_stripes;
-	int *server_sd;
+	int n, k, block_size, num_of_stripes, sd;
+	int *server_sd, num_of_server_sd;
 	char **serverip_port_addr;
 	char *user_cmd, **IP, **PORT;
 	int i;
 	struct sockaddr_in *server_addr;
+	fd_set fds;
+	int maxfd;
 	
 	user_cmd = check_arg(argc, argv);
 	read_clientconfig(argv[1], &n, &k, &block_size, &serverip_port_addr);
@@ -29,8 +31,13 @@ int main(int argc, char *argv[]) {
 		num_of_stripes = chunk_file(argv[3], n, k, block_size, &stripe);
 		encode_data(n, k, block_size, &stripe, num_of_stripes);
 	}
+	if (strcmp(user_cmd, "get") == 0) {
+		num_of_server_sd = k;
+	} else {
+		num_of_server_sd = n;
+	}
 	server_sd = (int *) calloc(n, sizeof(int));
-	server_addr = (struct sockaddr_in *) calloc(n, sizeof(server_addr));
+	server_addr = (struct sockaddr_in *) calloc(1, sizeof(struct sockaddr_in *));
 	IP = (char **) calloc(n, sizeof(char *));
 	PORT = (char **) calloc(n, sizeof(char *));
 	for (i = 0; i < n; i++) {
@@ -49,29 +56,61 @@ int main(int argc, char *argv[]) {
 			printf("connection error: %s (Errno:%d)\n",strerror(errno),errno);
 			exit(0);
 		}
+		printf("i is %d\n", i);
 		printf("Connected client to server ip and port %s\n", serverip_port_addr[i]);
+		free(IP[i]);
+		free(PORT[i]);
 	}
-/*
-	
-	int sd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sd < 0) {
-        printf("open socket failed: %s (Errno: %d)\n", strerror(errno), errno);
-        return -1;
+	//free(IP);
+	//free(PORT);
+	// Select multiple server sd descriptors to maintain
+	// find max fd
+	maxfd = -1;
+	for (i = 0; i < num_of_server_sd; i++) {
+		if (server_sd[i] > maxfd) {
+			maxfd = server_sd[i];
+		}
 	}
-	struct sockaddr_in server_addr;
-	memset(&server_addr, 0, sizeof(server_addr));
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = inet_addr("192.168.0.3");
-	server_addr.sin_port = htons(13567);
-	if (connect(sd,(struct sockaddr *)&server_addr,sizeof(server_addr)) < 0) {
-		printf("connection error: %s (Errno:%d)\n",strerror(errno),errno);
-		exit(0);
+	printf("maxfd %d\n", maxfd);
+	// pseudo code from slide 32 Lecture 3 Part 1 and piazza Post 100
+	// https://piazza.com/class/k4gkrtwpx1m3yr?cid=100 
+	for (;;) {
+		FD_ZERO(&fds);
+		for (i = 0 ; i < num_of_server_sd; i++) {
+			FD_SET(server_sd[i], &fds);
+		}
+		select(maxfd+1, NULL, &fds, NULL, NULL);
+		for (i = 0; i < num_of_server_sd; i++) {
+			sd = server_sd[i];
+
+			if (FD_ISSET(sd, &fds)) {
+				printf("server id %d\n", i);
+				fflush(stdout);
+				// send request
+				struct message_s client_request_message;
+				memset(&client_request_message, 0, sizeof(struct message_s));
+				set_message_type(&client_request_message, user_cmd, argv);
+				if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0)	{
+					printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+					exit(0);
+				}
+				// send file name
+				if (strcmp(user_cmd, "list") != 0) {
+					printf("File name %s\n", file_name);
+					if ((len = send(sd, file_name, strlen(file_name), 0)) < 0) {
+						printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+						exit(0);
+					}
+				}
+				// recv response
+				// send/recv file from this server sd
+
+			}
+		}
+		// somehow has to break after finishing all server sd
+		break;
 	}
-	printf("Connected client\n");
-	struct message_s client_request_message;
-	memset(&client_request_message, 0, sizeof(struct message_s));
-	set_message_type(&client_request_message, user_cmd, argv);
-	
+	/*
 	int len;
 	if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0)	{
 		printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
@@ -120,7 +159,7 @@ void set_message_type(struct message_s *client_request_message,char *user_cmd, c
 	}
 	client_request_message->length = sizeof(struct message_s);
 	if (strcmp(user_cmd, "list") != 0) {
-		client_request_message->length += strlen(argv[4]);
+		client_request_message->length += strlen(argv[3]);
 	}
 	client_request_message->length = htonl(client_request_message->length);
 }
@@ -174,7 +213,6 @@ void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, 
 void init_ip_port(char* serverip_port_addr, char **ip, char **port) {
 	char *original_p;
 	int length, i;
-	printf("serverip_port_addr: %s\n", serverip_port_addr);
 	length = strlen(serverip_port_addr);
 	original_p = (char *) calloc(length, sizeof(char));
 	strcpy(original_p, serverip_port_addr);
@@ -189,6 +227,7 @@ void init_ip_port(char* serverip_port_addr, char **ip, char **port) {
 	*port = (char *) calloc(length - i, sizeof(char));
 	strcpy(*ip, original_p);
 	strcpy(*port, &serverip_port_addr[i]);
+	free(original_p);
 	printf("IP: %s\n", *ip);
 	printf("PORT: %s\n", *port);
 }
