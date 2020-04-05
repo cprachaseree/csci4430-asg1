@@ -19,12 +19,15 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in *server_addr;
 	fd_set fds;
 	int maxfd;
+	int file_size;
 	
 	user_cmd = check_arg(argc, argv);
 	file_name = argv[3];
 	read_clientconfig(argv[1], &n, &k, &block_size, &serverip_port_addr);
 
 	Stripe *stripe;
+
+	// set up stripes
 	if (strcmp(user_cmd, "put") == 0) {
 		if (get_file_size(file_name) == -1) {
 			printf("File does not exist\n");
@@ -32,8 +35,8 @@ int main(int argc, char *argv[]) {
 		}	
 		// in myftp.c
 		num_of_stripes = chunk_file(argv[3], n, k, block_size, &stripe);
+		printf("Num of stripes is %d\n", num_of_stripes);
 		encode_data(n, k, block_size, &stripe, num_of_stripes);
-	}
 	if (strcmp(user_cmd, "get") == 0) {
 		num_of_server_sd = k;
 	} else {
@@ -73,6 +76,10 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	printf("maxfd %d\n", maxfd);
+	file_size = 0;
+	int stripe_index = 0;
+	// used to check if all server sds are done
+	int *done = (int *) calloc(num_of_server_sd, sizeof(int));
 	// pseudo code from slide 32 Lecture 3 Part 1 and piazza Post 100
 	// https://piazza.com/class/k4gkrtwpx1m3yr?cid=100 
 	for (;;) {
@@ -82,9 +89,13 @@ int main(int argc, char *argv[]) {
 		}
 		select(maxfd+1, NULL, &fds, NULL, NULL);
 		for (i = 0; i < num_of_server_sd; i++) {
+			// check if sd is unique
+			if (done[i] == 1) {
+				continue;
+			}
 			sd = server_sd[i];
-
 			if (FD_ISSET(sd, &fds)) {
+				done[i] = 1
 				printf("server id %d\n", i);
 				// send request
 				struct message_s client_request_message;
@@ -115,14 +126,15 @@ int main(int argc, char *argv[]) {
 					printf("File does not exist from server socket %d\n", sd);
 				} else if (server_reply.type == 0xB2) {
 					// for get file 
-					int file_size = check_file_data_header(sd) - sizeof(struct message_s);
+					// have to get filesize from metadata of server
+					file_size = check_file_data_header(sd) - sizeof(struct message_s);
+
+					stripe_index++;
 					//receive_file(sd, file_size, file_name);
 				} else if (server_reply.type == 0xC2) {
 					// for put file
-					int file_size = get_file_size(file_name);
-					// 
+					file_size = get_file_size(file_name);
 					put(sd, i, n, k, stripe, num_of_stripes, file_name, file_size, block_size);
-					
 				} else if (server_reply.type == 0xA2) {
 					// for list file
 					int payload_size = ntohl(server_reply.length) - sizeof(server_reply); 
@@ -130,10 +142,23 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		}
-		// somehow has to break after finishing all server sd
-		break;
+		// check if all servers are done
+		int j;
+		for (j = 0; j < num_of_server_sd; j++) {
+			if (done[j] == 0) {
+				break;
+			}
+		}
+		if (j == num_of_server_sd) {
+			break;
+		}
 	}
 	// if get have to combine and decode the files
+	if (strcmp(user_cmd, "get") == 0) {
+		printf("File size is %d\n", file_size);
+		// have to decode
+	}
+
 }
 
 void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
@@ -250,19 +275,14 @@ void put(int sd, int i, int n, int k, Stripe *stripe,
 	// send stripe id
 	send_file_header(sd, i);
 	// check if should send data_block or parity_block
-	if (i < k) {
-		c = 'd';
-	} else {
-		c = 'p';
-	}
 	// send all data_block or parity_block along the column
 	for (j = 0; j < num_of_stripes; j++) {
-		if (c == 'd') {
+		if (j < k) {
 			if ((len = send(sd, stripe[j].data_block[i], block_size, 0)) < 0) {
 	        	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 	        	exit(0);
 	    	}
-		} else if (c == 'p') {
+		} else {
 			if ((len = send(sd, stripe[j].parity_block[i - k], block_size, 0)) < 0) {
 	        	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 	        	exit(0);
@@ -271,3 +291,34 @@ void put(int sd, int i, int n, int k, Stripe *stripe,
 	}
 }
 
+int receive_stripes(int n, int k, int block_size,
+	int sd, Stripe **stripe, int stripe_index) {
+	
+	int len, i;
+	int file_size =  check_file_data_header(sd) - sizeof(struct message_s);
+	send_file_header(sd, block_size);
+	send_file_header(sd, n);
+	int stripeid =  check_file_data_header(sd) - sizeof(struct message_s);
+	char* buffer = (char *)calloc(block_size, sizeof(char));
+	num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
+	if (stripe == NULL) {
+		*stripe = (*Stripe) calloc(num_of_stripes, sizeof(Stripe));
+	}
+	for (i = 0; i < num_of_stripes; i++) {
+		((*stripe)[i]).sid = i;
+		((*stripe)[i]).data_block = (unsigned char **) calloc(k, sizeof(unsigned char *));
+		((*stripe)[i]).parity_block = (unsigned char **) calloc(n-k, sizeof(unsigned char *));
+		if ((len = recv(source_sd, buffer, block_size, 0)) < 0) {
+    		memset(buffer, 0, sizeof(char));
+			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+	        exit(0);
+		}
+		// get the data and put them into the stripes
+		if (i < k) {
+			strcpy(((*stripe)[i]).data_block[stripeid], buffer);
+		} else {
+			strcpy(((*stripe)[i]).data_block[stripeid], buffer);
+		}
+	}
+	return stripeid;
+}
