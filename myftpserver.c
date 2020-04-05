@@ -206,7 +206,7 @@ void list(int client_sd) {
     reply.type = 0xA2;
 	struct dirent *entry;
     DIR *folder;
-    folder = opendir("./data");
+    folder = opendir("./metadata");
 	char all_filename[512];
 	int size = 1; // include null-terminated symbol
     while(entry = readdir(folder)) {

@@ -13,6 +13,7 @@ void put(int sd, int i, int n, int k, Stripe *stripe,
 int main(int argc, char *argv[]) {
 	int n, k, block_size, num_of_stripes, sd;
 	int *server_sd, num_of_server_sd;
+	int *success_con;
 	char **serverip_port_addr;
 	char *user_cmd, *file_name, **IP, **PORT;
 	int i, len;
@@ -37,15 +38,17 @@ int main(int argc, char *argv[]) {
 		num_of_stripes = chunk_file(argv[3], n, k, block_size, &stripe);
 		printf("Num of stripes is %d\n", num_of_stripes);
 		encode_data(n, k, block_size, &stripe, num_of_stripes);
-	if (strcmp(user_cmd, "get") == 0) {
-		num_of_server_sd = k;
-	} else {
-		num_of_server_sd = n;
-	}
 	server_sd = (int *) calloc(n, sizeof(int));
 	server_addr = (struct sockaddr_in *) calloc(1, sizeof(struct sockaddr_in *));
+	success_con = (int *) calloc(n, sizeof(int));
 	IP = (char **) calloc(n, sizeof(char *));
 	PORT = (char **) calloc(n, sizeof(char *));
+	printf("success_con\n");
+	for(i = 0; i < n; i++) {
+		printf("%d ", i);
+		printf("%d\n", success_con[i]);
+	}
+	printf("\n");
 	for (i = 0; i < n; i++) {
 		server_sd[i] = socket(AF_INET, SOCK_STREAM, 0);
 		if (server_sd[i] < 0) {
@@ -59,14 +62,50 @@ int main(int argc, char *argv[]) {
 		server_addr[i].sin_port = htons(atoi(PORT[i]));
 		printf("IP: %s PORT: %s\n", IP[i], PORT[i]);
 		if (connect(server_sd[i],(struct sockaddr *) &server_addr[i],sizeof(server_addr[i])) < 0) {
-			printf("connection error: %s (Errno:%d)\n",strerror(errno),errno);
-			exit(0);
+			printf("Server %d connection error: %s (Errno:%d)\n", i, strerror(errno), errno);
+			success_con[i] = 0;
+			printf("success %d\n", success_con[i]);
+		}
+		else {
+			num_of_server_sd++;
+			success_con[i] = 1;
+			printf("Connected client to server ip and port %s\n", serverip_port_addr[i]);
+			printf("success %d\n", success_con[i]);
 		}
 		printf("i is %d\n", i);
-		printf("Connected client to server ip and port %s\n", serverip_port_addr[i]);
 		free(IP[i]);
 		free(PORT[i]);
 	}
+	//if (num_of_server_sd < k || (num_of_server_sd < n && strcmp(user_cmd, "put") == 0)) {
+	//	printf("Not enough server available\n");
+	//	exit(0);
+	//}
+	int j;
+	printf("success_con\n");
+	for(i = 0; i < n; i++) {
+		printf("%d ", i);
+		printf("%d\n", success_con[i]);
+	}
+	printf("\n");
+	printf("server_sd\n");
+	for(i = 0; i < n; i++) {
+		printf("%d", server_sd[i]);
+	}
+	printf("\n");
+	// make server_sd to be all consecutive
+	for(i = 0; i < n; i++) {
+		if (success_con[i] == 0 && i != n-1) {
+			for(j = i; j < n; j++) {
+				close(server_sd[j]);
+				server_sd[j] = server_sd[j + 1];
+			}
+		}
+	}
+	printf("server_sd after\n");
+	for(i = 0; i < num_of_server_sd; i++) {
+		printf("%d", server_sd[i]);
+	}
+	printf("\n");
 	// Select multiple server sd descriptors to maintain
 	// find max fd
 	maxfd = -1;
@@ -76,6 +115,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	printf("maxfd %d\n", maxfd);
+	exit(0);
 	file_size = 0;
 	int stripe_index = 0;
 	// used to check if all server sds are done
@@ -139,6 +179,11 @@ int main(int argc, char *argv[]) {
 					// for list file
 					int payload_size = ntohl(server_reply.length) - sizeof(server_reply); 
 					list(sd, payload_size);
+					int k;
+					// skip all other server
+					for (k = 0; k < num_of_server_sd; j++) {
+						done[k] = 1;
+					}
 				}
 			}
 		}
