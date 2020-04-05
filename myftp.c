@@ -172,8 +172,7 @@ void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_strip
 	uint8_t *encode_matrix , *errors_matrix, *invert_matrix, *tables;
 	int i, j;
 	encode_matrix = (uint8_t *) calloc(n * k, sizeof(uint8_t));
-	errors_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
-	invert_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
+	
 	tables = (uint8_t *) calloc(32 * k * (n-k), sizeof(uint8_t));
 	// generate encoded matrix
 	gf_gen_rs_matrix(encode_matrix, n, k);
@@ -191,11 +190,21 @@ void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_strip
 		}
 	}
 	free(encode_matrix);
-	free(errors_matrix);
-	free(invert_matrix);
 	free(tables);
 }
 /*
 void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_stripes) {
-
+	int i;
+	uint8_t *encode_matrix , *errors_matrix, *invert_matrix, *tables;
+	encode_matrix = (uint8_t *) calloc(n * k, sizeof(uint8_t));
+	errors_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
+	invert_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
+	gf_gen_rs_matrix(encode_matrix, n, k);
+	FILE **fp;
+	fp = (FILE *) calloc(3, sizeof(FILE *));
+	Stripe *read_stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
+	free(encode_matrix);
+	free(errors_matrix);
+	free(invert_matrix);
+	free(tables);
 }*/

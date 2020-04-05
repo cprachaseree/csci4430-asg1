@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
 			}
 			sd = server_sd[i];
 			if (FD_ISSET(sd, &fds)) {
-				done[i] = 1
+				done[i] = 1;
 				printf("server id %d\n", i);
 				// send request
 				struct message_s client_request_message;
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
 		printf("File size is %d\n", file_size);
 		// have to decode
 	}
-
+}
 }
 
 void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
@@ -300,15 +300,15 @@ int receive_stripes(int n, int k, int block_size,
 	send_file_header(sd, n);
 	int stripeid =  check_file_data_header(sd) - sizeof(struct message_s);
 	char* buffer = (char *)calloc(block_size, sizeof(char));
-	num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
+	int num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
 	if (stripe == NULL) {
-		*stripe = (*Stripe) calloc(num_of_stripes, sizeof(Stripe));
+		*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
 	}
 	for (i = 0; i < num_of_stripes; i++) {
 		((*stripe)[i]).sid = i;
 		((*stripe)[i]).data_block = (unsigned char **) calloc(k, sizeof(unsigned char *));
 		((*stripe)[i]).parity_block = (unsigned char **) calloc(n-k, sizeof(unsigned char *));
-		if ((len = recv(source_sd, buffer, block_size, 0)) < 0) {
+		if ((len = recv(sd, buffer, block_size, 0)) < 0) {
     		memset(buffer, 0, sizeof(char));
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	        exit(0);

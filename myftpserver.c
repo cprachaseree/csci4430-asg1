@@ -120,7 +120,6 @@ void put_file(int client_sd, int file_name_length) {
     int payload_size = check_file_data_header(client_sd) - sizeof(struct message_s);
     int block_size = check_file_data_header(client_sd) - sizeof(struct message_s);
     int stripeid = check_file_data_header(client_sd) - sizeof(struct message_s);
-    
     printf("File size is %d\n", file_size);
     printf("Payload size is %d\n", payload_size);
     printf("Stripeid is %d\n", stripeid);
@@ -171,15 +170,16 @@ void get_file(int client_sd, int file_name_length) {
     send_file_header(client_sd, file_size);
     int block_size = check_file_data_header(client_sd) - sizeof(struct message_s);
     int n = check_file_data_header(client_sd) - sizeof(struct message_s);
+    int stripeid = check_file_data_header(client_sd) - sizeof(struct message_s);
     int stripeid_digits;
     int file_path_length;
-    char *file_path;
+    char *file_path2;
     FILE *fp;
     // check ths stripeid and send the id to client
     for (i = 0; i < n; i++) {
         stripeid_digits = snprintf(0,0,"%+d", stripeid) - 1;
         file_path_length = 5 + ntohl(file_name_length) + 1 + stripeid_digits;
-        file_path = (char *) calloc(file_path_length, sizeof(char));
+        file_path2 = (char *) calloc(file_path_length, sizeof(char));
         snprintf(file_path, file_path_length, "data/%s_%d", file_name, stripeid);
         if ((fp = fopen(file_path, "r")) != NULL) {
             break;
@@ -188,7 +188,7 @@ void get_file(int client_sd, int file_name_length) {
     send_file_header(client_sd, i);
     // start to send the data
 
-    fp(close);
+    fclose(fp);
     /*
     // send payload in chunks
     if (get_reply.type == 0xB2) {
