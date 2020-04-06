@@ -44,12 +44,6 @@ int main(int argc, char *argv[]) {
 	success_con = (int *) calloc(n, sizeof(int));
 	IP = (char **) calloc(n, sizeof(char *));
 	PORT = (char **) calloc(n, sizeof(char *));
-	printf("success_con\n");
-	for(i = 0; i < n; i++) {
-		printf("%d ", i);
-		printf("%d\n", success_con[i]);
-	}
-	printf("\n");
 	num_of_server_sd = 0;
 	for (i = 0; i < n; i++) {
 		server_sd[i] = socket(AF_INET, SOCK_STREAM, 0);
@@ -78,9 +72,10 @@ int main(int argc, char *argv[]) {
 		free(IP[i]);
 		free(PORT[i]);
 	}
-	printf("k: %d\n", k);
 	printf("num_of_server_sd: %d\n", num_of_server_sd);
-	if (num_of_server_sd < k || (num_of_server_sd < n && strcmp(user_cmd, "put") == 0)) {
+	if ((num_of_server_sd < 1 && strcmp(user_cmd, "list") == 0) ||
+		(num_of_server_sd < k && strcmp(user_cmd, "list") != 0) ||
+		(num_of_server_sd < n && strcmp(user_cmd, "put") == 0)) {
 		printf("Not enough server available\n");
 		exit(0);
 	}
@@ -91,7 +86,7 @@ int main(int argc, char *argv[]) {
 		printf("%d\n", success_con[i]);
 	}
 	printf("\n");
-	printf("server_sd\n");
+	printf("server_sd original\n");
 	for(i = 0; i < n; i++) {
 		printf("%d", server_sd[i]);
 	}
@@ -105,7 +100,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	printf("server_sd after\n");
+	printf("server_sd fixed\n");
 	for(i = 0; i < num_of_server_sd; i++) {
 		printf("%d", server_sd[i]);
 	}
