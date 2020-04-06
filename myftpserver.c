@@ -149,14 +149,18 @@ void put_file(int client_sd, int file_name_length) {
 }
 
 void get_file(int client_sd, int file_name_length) {
+    int len, i;
+    int file_size, num_of_stripes, serverid_digits, i_digits, file_path_length;
+    char * buffer;
+    FILE *fp;
     printf("%d is file name length\n", file_name_length);
     char *file_name = (char *) calloc(file_name_length, sizeof(char));
-    int len, i;
     if ((len = recv(client_sd, file_name, file_name_length, 0)) < 0) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
     printf("File name received is %s\n", file_name);
+    
     // create get reply
     struct message_s get_reply;
     memset(&get_reply, 0, sizeof(struct message_s));
@@ -164,8 +168,7 @@ void get_file(int client_sd, int file_name_length) {
     char* file_path = (char *) calloc(9 + file_name_length, sizeof(char));
     strcpy(file_path, "metadata/");
     strcat(file_path, file_name);
-    int file_size;
-    if ((file_size = get_file_size(file_path)) == -1) {
+    if (get_file_size(file_path) == -1) {
         printf("File does not exist\n");
         get_reply.type = 0xB3;
     } else {
@@ -178,29 +181,35 @@ void get_file(int client_sd, int file_name_length) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         exit(0);
     }
+    FILE *mfp;
+    mfp = fopen(file_path, "r");
+    fscanf(mfp, "%d\n", &file_size);
+    printf("File size is %d\n", file_size);
     // send file size after getting it from metadata
     send_file_header(client_sd, file_size);
-    int block_size = check_file_data_header(client_sd) - sizeof(struct message_s);
-    int n = check_file_data_header(client_sd) - sizeof(struct message_s);
-    int stripeid = check_file_data_header(client_sd) - sizeof(struct message_s);
-    int stripeid_digits;
-    int file_path_length;
-    char *file_path2;
-    FILE *fp;
-    // check ths stripeid and send the id to client
-    for (i = 0; i < n; i++) {
-        stripeid_digits = snprintf(0,0,"%+d", stripeid) - 1;
-        file_path_length = 5 + ntohl(file_name_length) + 1 + stripeid_digits;
-        file_path2 = (char *) calloc(file_path_length, sizeof(char));
-        snprintf(file_path, file_path_length, "data/%s_%d", file_name, stripeid);
-        if ((fp = fopen(file_path, "r")) != NULL) {
-            break;
+    // send serverid so client knows which column they will get
+    send_file_header(client_sd, server_id);
+    num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
+    // send each block
+    buffer = (char *) calloc(block_size, sizeof(char));
+    for (i = 0; i < num_of_stripes; i++) {
+        serverid_digits = snprintf(0,0,"%+d", server_id) - 1;
+        i_digits = snprintf(0,0,"%+d", i) - 1;
+        file_path_length = 5 + serverid_digits + 1 + ntohl(file_name_length) + 1 + i_digits;
+        char *file_path = (char *) calloc(file_path_length, sizeof(char));
+        snprintf(file_path, file_path_length, "data/%d_%s_%d", server_id, file_name, i);
+        printf("File path is %s\n", file_path);
+        fp = fopen(file_path, "r");
+        fread(buffer, block_size + 1, 1, fp);
+        printf("%s\n", buffer);
+        if ((len = send(client_sd, buffer, block_size, 0)) < 0) {
+            printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
+            exit(0);
         }
     }
-    send_file_header(client_sd, i);
+    
     // start to send the data
 
-    fclose(fp);
     /*
     // send payload in chunks
     if (get_reply.type == 0xB2) {

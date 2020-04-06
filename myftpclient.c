@@ -9,6 +9,8 @@ void init_ip_port(char* serverip_port_addr, char **ip, char **port);
 void list(int sd, int payload_size);
 void put(int sd, int n, int k, Stripe *stripe,
 	int num_of_stripes, char *file_name, int file_size, int block_size);
+void receive_stripes(int n, int k, int block_size,
+	int sd, Stripe **stripe, int file_size);
 
 int main(int argc, char *argv[]) {
 	int n, k, block_size, num_of_stripes, sd;
@@ -171,8 +173,7 @@ int main(int argc, char *argv[]) {
 					// for get file 
 					// have to get filesize from metadata of server
 					file_size = check_file_data_header(sd) - sizeof(struct message_s);
-
-					stripe_index++;
+					receive_stripes(n, k, block_size,sd, &stripe, file_size);
 					//receive_file(sd, file_size, file_name);
 				} else if (server_reply.type == 0xC2) {
 					// for put file
@@ -333,34 +334,45 @@ void put(int sd, int n, int k, Stripe *stripe,
 	}
 }
 
-int receive_stripes(int n, int k, int block_size,
-	int sd, Stripe **stripe, int stripe_index) {
+void receive_stripes(int n, int k, int block_size,
+	int sd, Stripe **stripe, int file_size) {
 	
-	int len, i;
-	int file_size =  check_file_data_header(sd) - sizeof(struct message_s);
-	send_file_header(sd, block_size);
-	send_file_header(sd, n);
-	int stripeid =  check_file_data_header(sd) - sizeof(struct message_s);
+	int len, i, j;
+	int serverid =  check_file_data_header(sd) - sizeof(struct message_s);
+	
 	char* buffer = (char *)calloc(block_size, sizeof(char));
 	int num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
-	if (stripe == NULL) {
+
+	printf("HERE\n");
+	fflush(stdout);
+	if (*stripe == NULL) {
 		*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
 	}
+	printf("HERE2\n");
+	fflush(stdout);
 	for (i = 0; i < num_of_stripes; i++) {
 		((*stripe)[i]).sid = i;
 		((*stripe)[i]).data_block = (unsigned char **) calloc(k, sizeof(unsigned char *));
 		((*stripe)[i]).parity_block = (unsigned char **) calloc(n-k, sizeof(unsigned char *));
-		if ((len = recv(sd, buffer, block_size, 0)) < 0) {
-    		memset(buffer, 0, sizeof(char));
+		if ((len = recv(sd, buffer, block_size, MSG_WAITALL)) < 0) {
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	        exit(0);
 		}
+		printf("%s\n", buffer);
+		fflush(stdout);
 		// get the data and put them into the stripes
-		if (i < k) {
-			strcpy(((*stripe)[i]).data_block[stripeid], buffer);
+		for (j = 0; j < n-k; j++) {
+			((*stripe)[i]).parity_block[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+		}
+		for (j = 0; j < k; j++) {
+			((*stripe)[i]).data_block[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+		}
+		if (serverid <= k) {
+			//((*stripe)[i]).data_block[serverid - 1] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+			strcpy(((*stripe)[i]).data_block[serverid - 1], buffer);
 		} else {
-			strcpy(((*stripe)[i]).data_block[stripeid], buffer);
+			//((*stripe)[i]).parity_block[serverid - k - 1] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+			strcpy(((*stripe)[i]).parity_block[serverid - k - 1], buffer);
 		}
 	}
-	return stripeid;
 }
