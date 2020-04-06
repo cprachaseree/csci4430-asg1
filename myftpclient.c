@@ -7,7 +7,7 @@ int check_port_number(int port_num_string);
 void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
 void init_ip_port(char* serverip_port_addr, char **ip, char **port);
 void list(int sd, int payload_size);
-void put(int sd, int i, int n, int k, Stripe *stripe,
+void put(int sd, int n, int k, Stripe *stripe,
 	int num_of_stripes, char *file_name, int file_size, int block_size);
 
 int main(int argc, char *argv[]) {
@@ -35,11 +35,12 @@ int main(int argc, char *argv[]) {
 			exit(0);
 		}	
 		// in myftp.c
-		num_of_stripes = chunk_file(argv[3], n, k, block_size, &stripe);
+		num_of_stripes = chunk_file(file_name, n, k, block_size, &stripe);
 		printf("Num of stripes is %d\n", num_of_stripes);
 		encode_data(n, k, block_size, &stripe, num_of_stripes);
+	}
 	server_sd = (int *) calloc(n, sizeof(int));
-	server_addr = (struct sockaddr_in *) calloc(1, sizeof(struct sockaddr_in *));
+	server_addr = (struct sockaddr_in *) calloc(n, sizeof(struct sockaddr_in));
 	success_con = (int *) calloc(n, sizeof(int));
 	IP = (char **) calloc(n, sizeof(char *));
 	PORT = (char **) calloc(n, sizeof(char *));
@@ -49,6 +50,7 @@ int main(int argc, char *argv[]) {
 		printf("%d\n", success_con[i]);
 	}
 	printf("\n");
+	num_of_server_sd = 0;
 	for (i = 0; i < n; i++) {
 		server_sd[i] = socket(AF_INET, SOCK_STREAM, 0);
 		if (server_sd[i] < 0) {
@@ -76,10 +78,12 @@ int main(int argc, char *argv[]) {
 		free(IP[i]);
 		free(PORT[i]);
 	}
-	//if (num_of_server_sd < k || (num_of_server_sd < n && strcmp(user_cmd, "put") == 0)) {
-	//	printf("Not enough server available\n");
-	//	exit(0);
-	//}
+	printf("k: %d\n", k);
+	printf("num_of_server_sd: %d\n", num_of_server_sd);
+	if (num_of_server_sd < k || (num_of_server_sd < n && strcmp(user_cmd, "put") == 0)) {
+		printf("Not enough server available\n");
+		exit(0);
+	}
 	int j;
 	printf("success_con\n");
 	for(i = 0; i < n; i++) {
@@ -115,7 +119,6 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	printf("maxfd %d\n", maxfd);
-	exit(0);
 	file_size = 0;
 	int stripe_index = 0;
 	// used to check if all server sds are done
@@ -174,13 +177,13 @@ int main(int argc, char *argv[]) {
 				} else if (server_reply.type == 0xC2) {
 					// for put file
 					file_size = get_file_size(file_name);
-					put(sd, i, n, k, stripe, num_of_stripes, file_name, file_size, block_size);
+					put(sd, n, k, stripe, num_of_stripes, file_name, file_size, block_size);
 				} else if (server_reply.type == 0xA2) {
 					// for list file
 					int payload_size = ntohl(server_reply.length) - sizeof(server_reply); 
 					list(sd, payload_size);
 					int k;
-					// skip all other server
+					// skip all other server // should we change j++ to k++?
 					for (k = 0; k < num_of_server_sd; j++) {
 						done[k] = 1;
 					}
@@ -203,7 +206,6 @@ int main(int argc, char *argv[]) {
 		printf("File size is %d\n", file_size);
 		// have to decode
 	}
-}
 }
 
 void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
@@ -301,34 +303,29 @@ void list(int sd, int payload_size) {
 	printf("%s", buf);
 }
 
-void put(int sd, int i, int n, int k, Stripe *stripe,
+void put(int sd, int n, int k, Stripe *stripe,
 	int num_of_stripes, char *file_name, int file_size, int block_size) {
-	//send_file_header(sd, file_size);
-	// send_file(sd, file_size, file_name);
-	int payload_size, j, len;
+	int j, len;
 	char c;
 	// send file size for server to store in metadata
     printf("File size is %d\n", file_size);
-	payload_size = num_of_stripes * block_size;
-	printf("Payload size is %d\n", payload_size);
-	printf("Stripeid (i) is %d\n", i);
+	printf("Num of stripes is %d\n", num_of_stripes);
 	send_file_header(sd, file_size);
+	int serverid = check_file_data_header(sd) - sizeof(struct message_s);
+	printf("Serverid is %d\n", serverid);
 	// send size of stripes
-	send_file_header(sd, payload_size);
-	// send block size
-	send_file_header(sd, block_size);
-	// send stripe id
-	send_file_header(sd, i);
+	send_file_header(sd, num_of_stripes);
 	// check if should send data_block or parity_block
 	// send all data_block or parity_block along the column
 	for (j = 0; j < num_of_stripes; j++) {
-		if (j < k) {
-			if ((len = send(sd, stripe[j].data_block[i], block_size, 0)) < 0) {
+		fflush(stdout);
+		if (serverid <= k) {
+			if ((len = send(sd, stripe[j].data_block[serverid - 1], block_size, 0)) < 0) {
 	        	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 	        	exit(0);
 	    	}
 		} else {
-			if ((len = send(sd, stripe[j].parity_block[i - k], block_size, 0)) < 0) {
+			if ((len = send(sd, stripe[j].parity_block[serverid - 1 - k], block_size, 0)) < 0) {
 	        	printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 	        	exit(0);
 	    	}

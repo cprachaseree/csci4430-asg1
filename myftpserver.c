@@ -11,8 +11,9 @@ void get_file(int client_sd, int file_name_length);
 void put_file(int client_sd, int file_name_length);
 void store_metadata(int file_size, char *file_name, int file_name_length);
 
+int n, k, block_size, server_id, PORT_NUMBER;
+
 int main(int argc, char *argv[]) {
-    int n, k, block_size, server_id, PORT_NUMBER;
     check_arg(argc);
     
     read_serverconfig(argv[1], &n, &k, &block_size, &server_id, &PORT_NUMBER);
@@ -68,7 +69,7 @@ void read_serverconfig(char *serverconfig_name, int *n, int *k, int *block_size,
         print_arg_error("server");
         exit(0);
     }
-    if (fscanf(serverconfig_fp, "%d\n%d\n%d\n%d\n%d\n", n, k, block_size, server_id, PORT_NUMBER) != 5) {
+    if (fscanf(serverconfig_fp, "%d\n%d\n%d\n%d\n%d\n", n, k,  server_id, block_size, PORT_NUMBER) != 5) {
         printf("Error in serverconfig.txt.\n");
         exit(0);
     }
@@ -100,7 +101,7 @@ void* connection(void* client_sd) {
 
 void put_file(int client_sd, int file_name_length) {
     char *file_name = (char *) calloc(file_name_length, sizeof(char));
-    int len;
+    int len, i;
     if ((len = recv(client_sd, file_name, file_name_length, 0)) < 0) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
@@ -117,23 +118,34 @@ void put_file(int client_sd, int file_name_length) {
     }
     // get data from myftpclient put()
     int file_size =  check_file_data_header(client_sd) - sizeof(struct message_s);
-    int payload_size = check_file_data_header(client_sd) - sizeof(struct message_s);
-    int block_size = check_file_data_header(client_sd) - sizeof(struct message_s);
-    int stripeid = check_file_data_header(client_sd) - sizeof(struct message_s);
+    send_file_header(client_sd, server_id);
+    int num_of_blocks = check_file_data_header(client_sd) - sizeof(struct message_s);
+
     printf("File size is %d\n", file_size);
-    printf("Payload size is %d\n", payload_size);
-    printf("Stripeid is %d\n", stripeid);
+    printf("num_of_blocks is %d\n", num_of_blocks);
     // store file size to metadata folder with same file name
     store_metadata(file_size, file_name, file_name_length);
     // store actual data into data/filename_stripeid
     // make file path name
-    int stripeid_digits = snprintf(0,0,"%+d", stripeid) - 1;
-    int file_path_length = 5 + ntohl(file_name_length) + 1 + stripeid_digits;
-    char *file_path = (char *) calloc(file_path_length, sizeof(char));
-    snprintf(file_path, file_path_length, "data/%s_%d", file_name, stripeid);
-    printf("File path is %s\n", file_path);
-    // store the data
-    receive_file(client_sd, file_size, file_path, block_size);
+    int serverid_digits, i_digits, file_path_length;
+    char* buffer = (char *)calloc(block_size, sizeof(char));
+    FILE *fp;
+    
+    for (i = 0; i < num_of_blocks; i++) {
+        serverid_digits = snprintf(0,0,"%+d", server_id) - 1;
+        i_digits = snprintf(0,0,"%+d", i) - 1;
+        file_path_length = 5 + serverid_digits + 1 + ntohl(file_name_length) + 1 + i_digits;
+        char *file_path = (char *) calloc(file_path_length, sizeof(char));
+        snprintf(file_path, file_path_length, "data/%d_%s_%d", server_id, file_name, i);
+        printf("File path is %s\n", file_path);
+        fp = fopen(file_path, "w");
+        if ((len = recv(client_sd, buffer, block_size, MSG_WAITALL)) < 0) {
+            printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
+            exit(0);
+        }
+        fwrite(buffer, sizeof(buffer[0]), block_size, fp);
+        fclose(fp);
+    }
 }
 
 void get_file(int client_sd, int file_name_length) {
