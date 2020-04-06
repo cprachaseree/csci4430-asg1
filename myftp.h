@@ -22,6 +22,7 @@ int check_file_data_header(int source_sd);
 int get_file_size(char *file_name);
 
 
+
 struct message_s {
 	unsigned char protocol[5];   /*protocol string (5 bytes)*/
 	unsigned char type;          /*type (1 byte)*/
@@ -36,3 +37,4 @@ typedef struct stripe {
 
 int chunk_file(char *file_name, int n, int k, int block_size, Stripe **stripe);
 void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_stripes);
+void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_stripes, int *validstripes);

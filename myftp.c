@@ -192,19 +192,116 @@ void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_strip
 	free(encode_matrix);
 	free(tables);
 }
-/*
-void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_stripes) {
-	int i;
-	uint8_t *encode_matrix , *errors_matrix, *invert_matrix, *tables;
+
+void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_stripes, int *validstripes) {
+	int i, j, m, l, o;
+	uint8_t *encode_matrix , *errors_matrix, *invert_matrix, *decode_matrix, *tables;
 	encode_matrix = (uint8_t *) calloc(n * k, sizeof(uint8_t));
 	errors_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
 	invert_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
+	decode_matrix = (uint8_t *) calloc(k * k, sizeof(uint8_t));
+	tables = (uint8_t *) calloc(32 * k * (n-k), sizeof(uint8_t));
+
 	gf_gen_rs_matrix(encode_matrix, n, k);
-	FILE **fp;
-	fp = (FILE *) calloc(3, sizeof(FILE *));
-	Stripe *read_stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
+	unsigned char **src, **dest;
+	printf("encode_matrix\n");
+	for (i = 0; i < n; i++) {
+		for (j = 0; j < k; j++) {
+			printf("%d ", encode_matrix[n * i + j]);
+		}
+		printf("\n");
+	}
+	j = 0;
+	for (i = 0; i < n; i++) {
+		if (validstripes[i] == 1) {
+			for (m = 0; m < k; m++) {
+				errors_matrix[k * j + m] = encode_matrix[n * i + m];
+			}
+			j++;
+		}
+	}
+	printf("errors_matrix\n");
+	for (i = 0; i < k; i++) {
+		for (j = 0; j < k; j++) {
+			printf("%d ", errors_matrix[k * i + j]);
+		}
+		printf("\n");
+	}
+	gf_invert_matrix(errors_matrix, invert_matrix, k);
+	printf("invert_matrix\n");
+	for (i = 0; i < k; i++) {
+		for (j = 0; j < k; j++) {
+			printf("%d ", invert_matrix[k * i + j]);
+		}
+		printf("\n");
+	}
+	
+	j = 0;
+	for (i = 0; i < k; i++) {
+		if (validstripes[i] == 0) {
+			for (m = 0; m < k; m++) {
+				decode_matrix[k * j + m] = invert_matrix[k * i + m];
+			}
+			j++;
+		}
+	}
+	printf("decode_matrix\n");
+	for (i = 0; i < k; i++) {
+		for (j = 0; j < k; j++) {
+			printf("%d ", decode_matrix[k * i + j]);
+		}
+		printf("\n");
+	}
+	
+	
+	ec_init_tables(k, n-k, decode_matrix, tables);
+	
+	for (i = 0; i < num_of_stripes; i++) {
+		src  = (unsigned char **) calloc(k, sizeof(unsigned char **));
+		dest = (unsigned char **) calloc(n - k, sizeof(unsigned char **));
+		for (j = 0; j < k; j++) {
+			src[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
+		}
+		for (j = 0; j < n-k; j++) {
+			dest[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
+		}
+		m = 0;
+		for (j = 0; j < n; j++) {
+			if (validstripes[j] == 1) {
+				if (j < k) {
+					strcpy(src[m], ((*stripe)[i]).data_block[j]);
+				} else {
+					strcpy(src[m], ((*stripe)[i]).parity_block[k-j]);
+				}
+				m++;
+			}
+		}
+		for (j = 0; j < k; j++) {
+			printf("src[j]: %s\n", src[j]);
+		}
+		ec_encode_data(block_size, k, n-k, tables, src, dest);
+		fflush(stdout);
+		o = 0;
+		printf("Output dest:\n");
+		for (l = 0; l < n; l++) {
+			if (validstripes[l] == 0) {
+				printf("%s\n", dest[o]);
+				strcpy(((*stripe)[i]).data_block[l], dest[o]);
+				o++;
+			}
+		}
+		for (j = 0; j < n-k; j++) {
+			free(dest[j]);
+		}
+		for (j = 0; j < k; j++) {
+			free(src[j]);
+		}
+		free(src);
+		free(dest);
+	}
+
 	free(encode_matrix);
 	free(errors_matrix);
 	free(invert_matrix);
 	free(tables);
-}*/
+}

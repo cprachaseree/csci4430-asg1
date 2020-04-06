@@ -4,16 +4,16 @@ char *check_arg(int argc, char *argv[]);
 void read_clientconfig(char *clientconfig_name, int *n, int *k, int *block_size, char ***serverip_port_addr);
 void print_arg_error();
 int check_port_number(int port_num_string);
-void set_message_type(struct message_s *client_message,char *user_cmd, char *argv[]);
+void set_message_type(struct message_s *client_message,char *user_cmd, int file_name_length);
 void init_ip_port(char* serverip_port_addr, char **ip, char **port);
 void list(int sd, int payload_size);
 void put(int sd, int n, int k, Stripe *stripe,
 	int num_of_stripes, char *file_name, int file_size, int block_size);
-void receive_stripes(int n, int k, int block_size,
-	int sd, Stripe **stripe, int file_size);
+int receive_stripes(int n, int k, int block_size,
+	int sd, Stripe **stripe, int num_of_stripes);
 
 int main(int argc, char *argv[]) {
-	int n, k, block_size, num_of_stripes, sd;
+	int n, k, block_size, num_of_stripes, sd, x;
 	int *server_sd, num_of_server_sd;
 	int *success_con;
 	char **serverip_port_addr;
@@ -25,10 +25,13 @@ int main(int argc, char *argv[]) {
 	int file_size;
 	
 	user_cmd = check_arg(argc, argv);
-	file_name = argv[3];
+	if (strcmp(user_cmd, "list") != 0) {
+		file_name = argv[3];
+	}
+	
 	read_clientconfig(argv[1], &n, &k, &block_size, &serverip_port_addr);
 
-	Stripe *stripe;
+	Stripe *stripe = NULL;
 
 	// set up stripes
 	if (strcmp(user_cmd, "put") == 0) {
@@ -90,21 +93,22 @@ int main(int argc, char *argv[]) {
 	printf("\n");
 	printf("server_sd original\n");
 	for(i = 0; i < n; i++) {
-		printf("%d", server_sd[i]);
+		printf("%d ", server_sd[i]);
 	}
 	printf("\n");
 	// make server_sd to be all consecutive
 	for(i = 0; i < n; i++) {
 		if (success_con[i] == 0 && i != n-1) {
+			close(server_sd[i]);
 			for(j = i; j < n; j++) {
-				close(server_sd[j]);
+				//close(server_sd[j]);
 				server_sd[j] = server_sd[j + 1];
 			}
 		}
 	}
 	printf("server_sd fixed\n");
 	for(i = 0; i < num_of_server_sd; i++) {
-		printf("%d", server_sd[i]);
+		printf("%d ", server_sd[i]);
 	}
 	printf("\n");
 	// Select multiple server sd descriptors to maintain
@@ -117,9 +121,10 @@ int main(int argc, char *argv[]) {
 	}
 	printf("maxfd %d\n", maxfd);
 	file_size = 0;
-	int stripe_index = 0;
+	int serverid;
 	// used to check if all server sds are done
 	int *done = (int *) calloc(num_of_server_sd, sizeof(int));
+	int *validstripes = (int *) calloc(n, sizeof(int));
 	// pseudo code from slide 32 Lecture 3 Part 1 and piazza Post 100
 	// https://piazza.com/class/k4gkrtwpx1m3yr?cid=100 
 	for (;;) {
@@ -135,13 +140,12 @@ int main(int argc, char *argv[]) {
 			}
 			sd = server_sd[i];
 			if (FD_ISSET(sd, &fds)) {
-				done[i] = 1;
-				printf("server id %d\n", i);
+				printf("i: %d server_sd[i]: %d\n", i, server_sd[i]);
+				fflush(stdout);
 				// send request
 				struct message_s client_request_message;
 				memset(&client_request_message, 0, sizeof(struct message_s));
-				set_message_type(&client_request_message, user_cmd, argv);
-				if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0)	{
+				set_message_type(&client_request_message, user_cmd, strlen(file_name));				if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0)	{
 					printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 					exit(0);
 				}
@@ -168,8 +172,24 @@ int main(int argc, char *argv[]) {
 					// for get file 
 					// have to get filesize from metadata of server
 					file_size = check_file_data_header(sd) - sizeof(struct message_s);
-					receive_stripes(n, k, block_size,sd, &stripe, file_size);
-					//receive_file(sd, file_size, file_name);
+					num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
+					if (stripe == NULL) {
+						stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
+						for (j = 0; j < num_of_stripes; j++) {
+							stripe[j].sid = j;
+							stripe[j].data_block = (unsigned char **) calloc(k, sizeof(unsigned char *));
+							stripe[j].parity_block = (unsigned char **) calloc(n-k, sizeof(unsigned char *));
+							for (x = 0; x < n-k; x++) {
+								stripe[j].parity_block[x] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+							}
+							for (x = 0; x < k; x++) {
+								stripe[j].data_block[x] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
+							}
+						}
+					}
+					serverid = receive_stripes(n, k, block_size,sd, &stripe, num_of_stripes);
+					printf("serverid: %d\n", serverid);
+					validstripes[serverid - 1] = 1;
 				} else if (server_reply.type == 0xC2) {
 					// for put file
 					file_size = get_file_size(file_name);
@@ -184,6 +204,7 @@ int main(int argc, char *argv[]) {
 						done[k] = 1;
 					}
 				}
+				done[i] = 1;
 			}
 		}
 		// check if all servers are done
@@ -197,14 +218,33 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 	}
+	printf("Stripes: \n");
+	for (i = 0; i < num_of_stripes; i++) {
+		for (j = 0; j < n; j++) {
+			if (validstripes[j] == 1) {
+				if (j < k) {
+					printf("%s\n", stripe[i].data_block[j]);
+				} else {
+					printf("%s\n", stripe[i].parity_block[k - j]);
+				}
+			}
+		}
+	}
 	// if get have to combine and decode the files
 	if (strcmp(user_cmd, "get") == 0) {
 		printf("File size is %d\n", file_size);
 		// have to decode
+		decode_matrix(n, k, block_size, &stripe, num_of_stripes, validstripes);
+		printf("Decoded stripe:\n");
+		for (i = 0; i < num_of_stripes; i++) {
+			for (j = 0; j < k; j++) {
+				printf("%s\n", stripe[i].data_block[j]);
+			}
+		}
 	}
 }
 
-void set_message_type(struct message_s *client_request_message,char *user_cmd, char *argv[]) {
+void set_message_type(struct message_s *client_request_message,char *user_cmd, int file_name_length) {
 	strncpy(client_request_message->protocol, "myftp", 5);
 	if (strcmp(user_cmd, "list") == 0) {
 		client_request_message->type = 0xA1;
@@ -215,7 +255,7 @@ void set_message_type(struct message_s *client_request_message,char *user_cmd, c
 	}
 	client_request_message->length = sizeof(struct message_s);
 	if (strcmp(user_cmd, "list") != 0) {
-		client_request_message->length += strlen(argv[3]);
+		client_request_message->length += file_name_length;
 	}
 	client_request_message->length = htonl(client_request_message->length);
 }
@@ -329,45 +369,28 @@ void put(int sd, int n, int k, Stripe *stripe,
 	}
 }
 
-void receive_stripes(int n, int k, int block_size,
-	int sd, Stripe **stripe, int file_size) {
+int receive_stripes(int n, int k, int block_size,
+	int sd, Stripe **stripe, int num_of_stripes) {
 	
 	int len, i, j;
 	int serverid =  check_file_data_header(sd) - sizeof(struct message_s);
-	
 	char* buffer = (char *)calloc(block_size, sizeof(char));
-	int num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
-
-	printf("HERE\n");
-	fflush(stdout);
-	if (*stripe == NULL) {
-		*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
-	}
-	printf("HERE2\n");
-	fflush(stdout);
+	
 	for (i = 0; i < num_of_stripes; i++) {
-		((*stripe)[i]).sid = i;
-		((*stripe)[i]).data_block = (unsigned char **) calloc(k, sizeof(unsigned char *));
-		((*stripe)[i]).parity_block = (unsigned char **) calloc(n-k, sizeof(unsigned char *));
 		if ((len = recv(sd, buffer, block_size, MSG_WAITALL)) < 0) {
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	        exit(0);
 		}
-		printf("%s\n", buffer);
-		fflush(stdout);
 		// get the data and put them into the stripes
-		for (j = 0; j < n-k; j++) {
-			((*stripe)[i]).parity_block[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
-		}
-		for (j = 0; j < k; j++) {
-			((*stripe)[i]).data_block[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
-		}
 		if (serverid <= k) {
-			//((*stripe)[i]).data_block[serverid - 1] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
 			strcpy(((*stripe)[i]).data_block[serverid - 1], buffer);
+			printf("%s\n", ((*stripe)[i]).data_block[serverid - 1]);
 		} else {
-			//((*stripe)[i]).parity_block[serverid - k - 1] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
 			strcpy(((*stripe)[i]).parity_block[serverid - k - 1], buffer);
+			printf("%s\n", ((*stripe)[i]).parity_block[serverid - k - 1]);
 		}
 	}
+
+	free(buffer);
+	return serverid;
 }
