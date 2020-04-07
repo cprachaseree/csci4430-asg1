@@ -17,7 +17,10 @@ int main(int argc, char *argv[]) {
     check_arg(argc);
     
     read_serverconfig(argv[1], &n, &k, &block_size, &server_id, &PORT_NUMBER);
-    
+	// ceate dir metadata if not existed
+	if (opendir("./metadata") == NULL) {
+		mkdir("./metadata", 0777);
+	}
     // open socket
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sd < 0) {
@@ -255,7 +258,6 @@ void list(int client_sd) {
 void store_metadata(int file_size, char *file_name, int file_name_length){
     FILE *fp;
     char* file_path;
-    mkdir("/metadata", 0777);
     file_path = (char *) calloc(9 + file_name_length, sizeof(char));
     strcpy(file_path, "metadata/");
     strcat(file_path, file_name);
