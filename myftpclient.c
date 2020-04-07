@@ -396,4 +396,3 @@ int receive_stripes(int n, int k, int block_size,
 	free(buffer);
 	return serverid;
 }
-

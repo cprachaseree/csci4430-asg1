@@ -218,7 +218,6 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 		}
 		printf("\n");
 	}
-	// this part is wrong
 	j = 0;
 	for (i = 0; i < n; i++) {
 		if (validstripes[i] == 1) {
@@ -276,6 +275,8 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 		return;
 	}
 	// INIT TABLES
+	
+	
 	ec_init_tables(k, n-k, decode_matrix, tables);
 	
 	for (i = 0; i < num_of_stripes; i++) {
@@ -303,6 +304,8 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 		for (j = 0; j < k; j++) {
 			printf("src[%d]: %s\n", j, src[j]);
 		}
+		ec_encode_data(block_size, k, n-k, tables, src, dest);
+		fflush(stdout);
 		o = 0;
 		printf("Output dest:\n");
 		for (l = 0; l < n; l++) {
