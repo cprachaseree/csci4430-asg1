@@ -75,7 +75,6 @@ int main(int argc, char *argv[]) {
 		free(IP[i]);
 		free(PORT[i]);
 	}
-	printf("num_of_server_sd: %d\n", num_of_server_sd);
 	if ((num_of_server_sd < 1 && strcmp(user_cmd, "list") == 0) ||
 		(num_of_server_sd < k && strcmp(user_cmd, "list") != 0) ||
 		(num_of_server_sd < n && strcmp(user_cmd, "put") == 0)) {
@@ -205,6 +204,11 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 	}
+	printf("validstripes\n");
+	for(i = 0; i < n; i++) {
+		printf("%d\n", validstripes[i]);
+	}
+	/*
 	printf("Stripes: \n");
 	for (i = 0; i < num_of_stripes; i++) {
 		for (j = 0; j < n; j++) {
@@ -217,6 +221,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
+	*/
 	// if get have to combine and decode the files
 	if (strcmp(user_cmd, "get") == 0) {
 		printf("File size is %d\n", file_size);
@@ -372,11 +377,11 @@ int receive_stripes(int n, int k, int block_size,
 		}
 		// get the data and put them into the stripes
 		if (serverid <= k) {
-			strcpy(((*stripe)[i]).data_block[serverid - 1], buffer);
-			printf("%s\n", ((*stripe)[i]).data_block[serverid - 1]);
+			memcpy(((*stripe)[i]).data_block[serverid - 1], buffer, block_size);
+			//printf("%s\n", ((*stripe)[i]).data_block[serverid - 1]);
 		} else {
-			strcpy(((*stripe)[i]).parity_block[serverid - k - 1], buffer);
-			printf("%s\n", ((*stripe)[i]).parity_block[serverid - k - 1]);
+			memcpy(((*stripe)[i]).parity_block[serverid - k - 1], buffer, block_size);
+			//printf("%s\n", ((*stripe)[i]).parity_block[serverid - k - 1]);
 		}
 	}
 
