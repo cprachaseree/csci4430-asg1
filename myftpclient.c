@@ -65,13 +65,11 @@ int main(int argc, char *argv[]) {
 		if (connect(server_sd[i],(struct sockaddr *) &server_addr[i],sizeof(server_addr[i])) < 0) {
 			printf("Server %d connection error: %s (Errno:%d)\n", i, strerror(errno), errno);
 			success_con[i] = 0;
-			printf("success %d\n", success_con[i]);
 		}
 		else {
 			num_of_server_sd++;
 			success_con[i] = 1;
 			printf("Connected client to server ip and port %s\n", serverip_port_addr[i]);
-			printf("success %d\n", success_con[i]);
 		}
 		printf("i is %d\n", i);
 		free(IP[i]);
@@ -85,17 +83,6 @@ int main(int argc, char *argv[]) {
 		exit(0);
 	}
 	int j;
-	printf("success_con\n");
-	for(i = 0; i < n; i++) {
-		printf("%d ", i);
-		printf("%d\n", success_con[i]);
-	}
-	printf("\n");
-	printf("server_sd original\n");
-	for(i = 0; i < n; i++) {
-		printf("%d ", server_sd[i]);
-	}
-	printf("\n");
 	// make server_sd to be all consecutive
 	for(i = 0; i < n; i++) {
 		if (success_con[i] == 0 && i != n-1) {
@@ -106,11 +93,6 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	printf("server_sd fixed\n");
-	for(i = 0; i < num_of_server_sd; i++) {
-		printf("%d ", server_sd[i]);
-	}
-	printf("\n");
 	// Select multiple server sd descriptors to maintain
 	// find max fd
 	maxfd = -1;
@@ -119,7 +101,6 @@ int main(int argc, char *argv[]) {
 			maxfd = server_sd[i];
 		}
 	}
-	printf("maxfd %d\n", maxfd);
 	file_size = 0;
 	int serverid;
 	// used to check if all server sds are done
@@ -145,7 +126,13 @@ int main(int argc, char *argv[]) {
 				// send request
 				struct message_s client_request_message;
 				memset(&client_request_message, 0, sizeof(struct message_s));
-				set_message_type(&client_request_message, user_cmd, strlen(file_name));				if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0)	{
+				if (strcmp(user_cmd, "list") != 0) {
+					set_message_type(&client_request_message, user_cmd, strlen(file_name));
+				}
+				else {
+					set_message_type(&client_request_message, user_cmd, 0);
+				}	
+				if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0) {
 					printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 					exit(0);
 				}
@@ -200,7 +187,7 @@ int main(int argc, char *argv[]) {
 					list(sd, payload_size);
 					int k;
 					// skip all other server // should we change j++ to k++?
-					for (k = 0; k < num_of_server_sd; j++) {
+					for (k = 0; k < num_of_server_sd; k++) {
 						done[k] = 1;
 					}
 				}
