@@ -1,0 +1,10 @@
+.DS_Store
+.vscode/
+clientconfig.txt
+serverconfig.txt
+/data
+/metadata
+*.txt
+*.o
+client
+server
