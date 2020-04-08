@@ -42,7 +42,6 @@ int main(int argc, char *argv[]) {
 		}	
 		// in myftp.c
 		num_of_stripes = chunk_file(file_name, n, k, block_size, &stripe);
-		printf("Num of stripes is %d\n", num_of_stripes);
 		encode_data(n, k, block_size, &stripe, num_of_stripes);
 	}
 	server_sd = (int *) calloc(n, sizeof(int));
@@ -51,6 +50,7 @@ int main(int argc, char *argv[]) {
 	IP = (char **) calloc(n, sizeof(char *));
 	PORT = (char **) calloc(n, sizeof(char *));
 	num_of_server_sd = 0;
+	printf("Connect to servers\n\n");
 	for (i = 0; i < n; i++) {
 		server_sd[i] = socket(AF_INET, SOCK_STREAM, 0);
 		if (server_sd[i] < 0) {
@@ -72,7 +72,6 @@ int main(int argc, char *argv[]) {
 			success_con[i] = 1;
 			printf("Connected client to server ip and port %s\n", serverip_port_addr[i]);
 		}
-		printf("i is %d\n", i);
 		free(IP[i]);
 		free(PORT[i]);
 	}
@@ -121,7 +120,6 @@ int main(int argc, char *argv[]) {
 			}
 			sd = server_sd[i];
 			if (FD_ISSET(sd, &fds)) {
-				printf("i: %d server_sd[i]: %d\n", i, server_sd[i]);
 				fflush(stdout);
 				// send request
 				struct message_s client_request_message;
@@ -175,7 +173,6 @@ int main(int argc, char *argv[]) {
 						}
 					}
 					serverid = receive_stripes(n, k, block_size,sd, &stripe, num_of_stripes);
-					printf("serverid: %d\n", serverid);
 					validstripes[serverid - 1] = 1;
 				} else if (server_reply.type == 0xC2) {
 					// for put file
@@ -205,30 +202,11 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 	}
-	printf("validstripes\n");
-	for(i = 0; i < n; i++) {
-		printf("%d\n", validstripes[i]);
-	}
-	/*
-	printf("Stripes: \n");
-	for (i = 0; i < num_of_stripes; i++) {
-		for (j = 0; j < n; j++) {
-			if (validstripes[j] == 1) {
-				if (j < k) {
-					printf("%s\n", stripe[i].data_block[j]);
-				} else {
-					printf("%s\n", stripe[i].parity_block[k - j]);
-				}
-			}
-		}
-	}
-	*/
 	// if get have to combine and decode the files
 	if (strcmp(user_cmd, "get") == 0) {
-		printf("File size is %d\n", file_size);
+		printf("File size: %d\n", file_size);
 		// have to decode
 		decode_matrix(n, k, block_size, &stripe, num_of_stripes, validstripes);
-		printf("Decoded stripe:\n");
 		// TODO PUT stripe[i].data_block[j] INTO file_name based on file_size
 		write_to_file(file_name, k, block_size, file_size, num_of_stripes, stripe);
 		
@@ -285,6 +263,7 @@ void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, 
         printf("Error in clientconfig.txt.\n");
         exit(0);
     }
+	printf("Configuration\n");
     printf("n=%d\nk=%d\nblock_size=%d\n", *n, *k, *block_size);
     *serverip_port_addr = (char **) calloc(*n, sizeof(char*));
     for (int i = 0; i < *n; i++) {
@@ -315,8 +294,6 @@ void init_ip_port(char* serverip_port_addr, char **ip, char **port) {
 	strcpy(*ip, original_p);
 	strcpy(*port, &serverip_port_addr[i]);
 	free(original_p);
-	printf("IP: %s\n", *ip);
-	printf("PORT: %s\n", *port);
 }
 
 void list(int sd, int payload_size) {
@@ -335,11 +312,9 @@ void put(int sd, int n, int k, Stripe *stripe,
 	int j, len;
 	char c;
 	// send file size for server to store in metadata
-    printf("File size is %d\n", file_size);
-	printf("Num of stripes is %d\n", num_of_stripes);
+    printf("File size: %d\n", file_size);
 	send_file_header(sd, file_size);
 	int serverid = check_file_data_header(sd) - sizeof(struct message_s);
-	printf("Serverid is %d\n", serverid);
 	// send size of stripes
 	send_file_header(sd, num_of_stripes);
 	// check if should send data_block or parity_block

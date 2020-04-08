@@ -106,7 +106,6 @@ int check_file_data_header(int source_sd) {
 	    exit(0);
 	}
 	// check if file header protocol is correct
-	if (file_data.type == 0xFF) printf("YES\n");
 	if (strncmp(file_data.protocol, "myftp", 5) != 0 || file_data.type != 0xFF) {
 		printf("Invalid header type or protocol.\n");
 		exit(0);
@@ -144,10 +143,7 @@ int chunk_file(char *file_name, int n, int k, int block_size, Stripe **stripe) {
 	data_block_no = n - k;
 	// get num of stripes based on file size, k, and block size
 	num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
-	printf("File size: %d\n", file_size);
-	printf("num_of_stripes: %d\n", num_of_stripes);
 	*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
-	printf("%ld is size of *stripe\n", sizeof(*stripe));
 	for (i = 0; i < num_of_stripes; i++) {
 		// to be used so when the stripes are seperated we know which stripe id it is
 		((*stripe)[i]).sid = i;
@@ -159,7 +155,6 @@ int chunk_file(char *file_name, int n, int k, int block_size, Stripe **stripe) {
 		for (j = 0; j < k; j++) {
 			((*stripe)[i]).data_block[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char));
 			fread(((*stripe)[i]).data_block[j], block_size, 1, fp);
-			printf("i: %d, data: %s\n", i, ((*stripe)[i]).data_block[j]);
 		}
 	}
 	fclose(fp);
@@ -176,25 +171,11 @@ void encode_data(int n, int k, int block_size, Stripe **stripe, int num_of_strip
 	tables = (uint8_t *) calloc(32 * k * (n-k), sizeof(uint8_t));
 	// generate encoded matrix
 	gf_gen_rs_matrix(encode_matrix, n, k);
-	printf("encode_matrix in put\n");
-	for (i = 0; i < n; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%d ", encode_matrix[n * i + j]);
-		}
-		printf("\n");
-	}
 	// generate expanded matrix (includes parity matrix)
 	ec_init_tables(k, n-k, &encode_matrix[k*k], tables);
 	// generate parity for all stripes
 	for (i = 0; i < num_of_stripes; i++) {
 		ec_encode_data(block_size, k, n-k, tables, ((*stripe)[i]).data_block, ((*stripe)[i]).parity_block);
-		printf("c: %d\n", i);
-		for (j = 0; j < k; j++) {
-			printf("i: %d, data: %s\n", i, ((*stripe)[i]).data_block[j]);
-		}
-		for (j = 0; j < n-k; j++) {
-			printf("i: %d, parity: %s\n", i, ((*stripe)[i]).parity_block[j]);
-		}
 	}
 	free(encode_matrix);
 	free(tables);
@@ -211,13 +192,6 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 
 	gf_gen_rs_matrix(encode_matrix, n, k);
 	unsigned char **src, **dest;
-	printf("encode_matrix in get\n");
-	for (i = 0; i < n; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%x ", encode_matrix[k * i + j]);
-		}
-		printf("\n");
-	}
 	j = 0;
 	for (i = 0; i < n; i++) {
 		if (validstripes[i] == 1) {
@@ -227,21 +201,8 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 			j++;
 		}
 	}
-	printf("errors_matrix\n");
-	for (i = 0; i < k; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%x ", errors_matrix[k * i + j]);
-		}
-		printf("\n");
-	}
+	
 	gf_invert_matrix(errors_matrix, invert_matrix, k);
-	printf("invert_matrix\n");
-	for (i = 0; i < k; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%x ", invert_matrix[k * i + j]);
-		}
-		printf("\n");
-	}
 	
 	j = 0;
 	for (i = 0; i < k; i++) {
@@ -252,13 +213,7 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 			j++;
 		}
 	}
-	printf("decode_matrix\n");
-	for (i = 0; i < k; i++) {
-		for (j = 0; j < k; j++) {
-			printf("%x ", decode_matrix[k * i + j]);
-		}
-		printf("\n");
-	}
+
 	// IF DECODE MATRIX IS ALL ZEROES 
 	//  IT MEANS WE ALREADY GET K DATA BLOCKS 
 	// SO JUST RETURN
@@ -306,17 +261,14 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 			}
 		}
 		ec_encode_data(block_size, good, fail, tables, src, dest);
-		printf("Output src\n");
+		/*
 		for (j = 0; j < good; j++) {
 			printf("src[%d]: %s\n", j, src[j]);
 		}
+		*/
 		ec_encode_data(block_size, k, n-k, tables, src, dest);
 		fflush(stdout);
 		o = 0;
-		printf("Output dest:\n");
-		for (j = 0; j < fail; j++) {
-			printf("dest[%d]: %s\n", j, dest[j]);
-		}
 		for (l = 0; l < n; l++) {
 			if (validstripes[l] == 0) {
 				//printf("dest[%d]: %s\n", o, dest[o]);
