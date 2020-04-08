@@ -18,8 +18,8 @@ int main(int argc, char *argv[]) {
     
     read_serverconfig(argv[1], &n, &k, &block_size, &server_id, &PORT_NUMBER);
 	// ceate dir metadata if not existed
-	if (opendir("./metadata") == NULL) {
-		mkdir("./metadata", 0777);
+	if (opendir("./data/metadata") == NULL) {
+		mkdir("./data/metadata", 0777);
 	}
     // open socket
 	int sd = socket(AF_INET, SOCK_STREAM, 0);
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 		printf("listen failed: %s (Errno: %d)\n",strerror(errno), errno);
 		return -1;
 	}
-    printf("Server is listening to connections ...\n");
+    printf("Server is listening to connections\n");
     pthread_t threads[10];
     int thread_count = 0;
     while(1) {
@@ -76,7 +76,6 @@ void read_serverconfig(char *serverconfig_name, int *n, int *k, int *block_size,
         printf("Error in serverconfig.txt.\n");
         exit(0);
     }
-    printf("Configuration\n");
     printf("n=%d\nk=%d\nblock_size=%d\nserver_id=%d\nPORT_NUMBER=%d\n", *n, *k, *block_size, *server_id, *PORT_NUMBER);
     fclose(serverconfig_fp);
 }
@@ -110,7 +109,7 @@ void put_file(int client_sd, int file_name_length) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    printf("File name: %s\n", file_name);
+    printf("File name received is %s\n", file_name);
     struct message_s put_response;
     memset(&put_response, 0, sizeof(struct message_s));
     strcpy(put_response.protocol, "myftp");
@@ -125,8 +124,6 @@ void put_file(int client_sd, int file_name_length) {
     send_file_header(client_sd, server_id);
     int num_of_blocks = check_file_data_header(client_sd) - sizeof(struct message_s);
 
-    printf("File size: %d\n", file_size);
-    printf("No. of block: %d\n", num_of_blocks);
     // store file size to metadata folder with same file name
     store_metadata(file_size, file_name, file_name_length);
     // store actual data into data/filename_stripeid
@@ -161,14 +158,14 @@ void get_file(int client_sd, int file_name_length) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
-    printf("File name: %s\n", file_name);
+    printf("File name received is %s\n", file_name);
     
     // create get reply
     struct message_s get_reply;
     memset(&get_reply, 0, sizeof(struct message_s));
     strcpy(get_reply.protocol, "myftp");
-    char* file_path = (char *) calloc(9 + file_name_length, sizeof(char));
-    strcpy(file_path, "metadata/");
+    char* file_path = (char *) calloc(14 + file_name_length, sizeof(char));
+    strcpy(file_path, "data/metadata/");
     strcat(file_path, file_name);
     if (get_file_size(file_path) == -1) {
         printf("File does not exist\n");
@@ -186,7 +183,6 @@ void get_file(int client_sd, int file_name_length) {
     FILE *mfp;
     mfp = fopen(file_path, "r");
     fscanf(mfp, "%d\n", &file_size);
-    printf("File size: %d\n", file_size);
     // send file size after getting it from metadata
     send_file_header(client_sd, file_size);
     // send serverid so client knows which column they will get
@@ -207,16 +203,6 @@ void get_file(int client_sd, int file_name_length) {
             exit(0);
         }
     }
-    // start to send the data
-
-    /*
-    // send payload in chunks
-    if (get_reply.type == 0xB2) {
-        send_file_header(client_sd, file_size);
-        printf("File size is %d\n", file_size);
-        send_file(client_sd, file_size, file_path);
-    }
-    free(file_path);*/
 }
 
 void list(int client_sd) {
@@ -226,7 +212,7 @@ void list(int client_sd) {
     reply.type = 0xA2;
 	struct dirent *entry;
     DIR *folder;
-    folder = opendir("./metadata");
+    folder = opendir("./data/metadata");
 	char all_filename[512];
 	int size = 1; // include null-terminated symbol
     while(entry = readdir(folder)) {
@@ -254,8 +240,8 @@ void list(int client_sd) {
 void store_metadata(int file_size, char *file_name, int file_name_length){
     FILE *fp;
     char* file_path;
-    file_path = (char *) calloc(9 + file_name_length, sizeof(char));
-    strcpy(file_path, "metadata/");
+    file_path = (char *) calloc(14 + file_name_length, sizeof(char));
+    strcpy(file_path, "data/metadata/");
     strcat(file_path, file_name);
     if ((fp = fopen(file_path, "w")) == NULL ) {
         printf("Error opening metadata file. Program terminated\n");

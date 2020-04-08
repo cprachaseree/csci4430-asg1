@@ -50,7 +50,6 @@ int main(int argc, char *argv[]) {
 	IP = (char **) calloc(n, sizeof(char *));
 	PORT = (char **) calloc(n, sizeof(char *));
 	num_of_server_sd = 0;
-	printf("Connect to servers\n\n");
 	for (i = 0; i < n; i++) {
 		server_sd[i] = socket(AF_INET, SOCK_STREAM, 0);
 		if (server_sd[i] < 0) {
@@ -62,9 +61,8 @@ int main(int argc, char *argv[]) {
 		init_ip_port(serverip_port_addr[i], &IP[i], &PORT[i]);
 		server_addr[i].sin_addr.s_addr = inet_addr(IP[i]);
 		server_addr[i].sin_port = htons(atoi(PORT[i]));
-		printf("IP: %s PORT: %s\n", IP[i], PORT[i]);
 		if (connect(server_sd[i],(struct sockaddr *) &server_addr[i],sizeof(server_addr[i])) < 0) {
-			printf("Server %d connection error: %s (Errno:%d)\n", i, strerror(errno), errno);
+			printf("Server %d connection error: %s (Errno:%d)\n", i + 1, strerror(errno), errno);
 			success_con[i] = 0;
 		}
 		else {
@@ -75,6 +73,7 @@ int main(int argc, char *argv[]) {
 		free(IP[i]);
 		free(PORT[i]);
 	}
+	printf("\n");
 	if ((num_of_server_sd < 1 && strcmp(user_cmd, "list") == 0) ||
 		(num_of_server_sd < k && strcmp(user_cmd, "list") != 0) ||
 		(num_of_server_sd < n && strcmp(user_cmd, "put") == 0)) {
@@ -120,7 +119,6 @@ int main(int argc, char *argv[]) {
 			}
 			sd = server_sd[i];
 			if (FD_ISSET(sd, &fds)) {
-				fflush(stdout);
 				// send request
 				struct message_s client_request_message;
 				memset(&client_request_message, 0, sizeof(struct message_s));
@@ -136,7 +134,6 @@ int main(int argc, char *argv[]) {
 				}
 				// send file name
 				if (strcmp(user_cmd, "list") != 0) {
-					printf("File name %s\n", file_name);
 					if ((len = send(sd, file_name, strlen(file_name), 0)) < 0) {
 						printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 						exit(0);
@@ -152,7 +149,8 @@ int main(int argc, char *argv[]) {
 				// send/recv file from this server sd
 				if (server_reply.type == 0xB3) {
 					// no file
-					printf("File does not exist from server socket %d\n", sd);
+					printf("File does not exist in server");
+					exit(0);
 				} else if (server_reply.type == 0xB2) {
 					// for get file 
 					// have to get filesize from metadata of server
@@ -204,13 +202,13 @@ int main(int argc, char *argv[]) {
 	}
 	// if get have to combine and decode the files
 	if (strcmp(user_cmd, "get") == 0) {
-		printf("File size: %d\n", file_size);
 		// have to decode
 		decode_matrix(n, k, block_size, &stripe, num_of_stripes, validstripes);
 		// TODO PUT stripe[i].data_block[j] INTO file_name based on file_size
 		write_to_file(file_name, k, block_size, file_size, num_of_stripes, stripe);
 		
 	}
+	printf("\nDone.\n");
 }
 
 void set_message_type(struct message_s *client_request_message,char *user_cmd, int file_name_length) {
@@ -263,7 +261,6 @@ void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, 
         printf("Error in clientconfig.txt.\n");
         exit(0);
     }
-	printf("Configuration\n");
     printf("n=%d\nk=%d\nblock_size=%d\n", *n, *k, *block_size);
     *serverip_port_addr = (char **) calloc(*n, sizeof(char*));
     for (int i = 0; i < *n; i++) {
@@ -271,7 +268,6 @@ void read_clientconfig(char *clientconfig_name,int *n, int *k, int *block_size, 
     	if ((*serverip_port_addr)[i][char_length-1] == '\n') {
     		(*serverip_port_addr)[i][char_length-1] = '\0';
     	}
-    	printf("%s\n", (*serverip_port_addr)[i]);
     }
     fclose(clientconfig_fp);
 }
@@ -312,7 +308,6 @@ void put(int sd, int n, int k, Stripe *stripe,
 	int j, len;
 	char c;
 	// send file size for server to store in metadata
-    printf("File size: %d\n", file_size);
 	send_file_header(sd, file_size);
 	int serverid = check_file_data_header(sd) - sizeof(struct message_s);
 	// send size of stripes
@@ -350,10 +345,8 @@ int receive_stripes(int n, int k, int block_size,
 		// get the data and put them into the stripes
 		if (serverid <= k) {
 			memcpy(((*stripe)[i]).data_block[serverid - 1], buffer, block_size);
-			//printf("%s\n", ((*stripe)[i]).data_block[serverid - 1]);
 		} else {
 			memcpy(((*stripe)[i]).parity_block[serverid - k - 1], buffer, block_size);
-			//printf("%s\n", ((*stripe)[i]).parity_block[serverid - k - 1]);
 		}
 	}
 

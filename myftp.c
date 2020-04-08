@@ -106,6 +106,10 @@ int check_file_data_header(int source_sd) {
 	    exit(0);
 	}
 	// check if file header protocol is correct
+	if (file_data.type != 0xFF) {
+		printf("Transferring error.\n");
+		exit(0);
+	}
 	if (strncmp(file_data.protocol, "myftp", 5) != 0 || file_data.type != 0xFF) {
 		printf("Invalid header type or protocol.\n");
 		exit(0);
@@ -142,7 +146,6 @@ int chunk_file(char *file_name, int n, int k, int block_size, Stripe **stripe) {
 	fp = fopen(file_name, "r");
 	data_block_no = n - k;
 	// get num of stripes based on file size, k, and block size
-	num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
 	*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
 	for (i = 0; i < num_of_stripes; i++) {
 		// to be used so when the stripes are seperated we know which stripe id it is
@@ -192,6 +195,7 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 
 	gf_gen_rs_matrix(encode_matrix, n, k);
 	unsigned char **src, **dest;
+	
 	j = 0;
 	for (i = 0; i < n; i++) {
 		if (validstripes[i] == 1) {
@@ -204,6 +208,7 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 	
 	gf_invert_matrix(errors_matrix, invert_matrix, k);
 	
+	
 	j = 0;
 	for (i = 0; i < k; i++) {
 		if (validstripes[i] == 0) {
@@ -213,7 +218,7 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 			j++;
 		}
 	}
-
+	
 	// IF DECODE MATRIX IS ALL ZEROES 
 	//  IT MEANS WE ALREADY GET K DATA BLOCKS 
 	// SO JUST RETURN
@@ -260,15 +265,10 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 				m++;
 			}
 		}
-		ec_encode_data(block_size, good, fail, tables, src, dest);
-		/*
-		for (j = 0; j < good; j++) {
-			printf("src[%d]: %s\n", j, src[j]);
-		}
-		*/
+		//ec_encode_data(block_size, good, fail, tables, src, dest);
 		ec_encode_data(block_size, k, n-k, tables, src, dest);
-		fflush(stdout);
 		o = 0;
+		
 		for (l = 0; l < n; l++) {
 			if (validstripes[l] == 0) {
 				//printf("dest[%d]: %s\n", o, dest[o]);
@@ -285,53 +285,7 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 		free(src);
 		free(dest);
 	}
-	/*
-	for (i = 0; i < num_of_stripes; i++) {
-		src  = (unsigned char **) calloc(k, sizeof(unsigned char **));
-		dest = (unsigned char **) calloc(n - k, sizeof(unsigned char **));
-		for (j = 0; j < k; j++) {
-			src[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
-		}
-		for (j = 0; j < n-k; j++) {
-			dest[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
-		}
-		m = 0;
-		for (j = 0; j < n; j++) {
-			if (validstripes[j] == 1) {
-				if (j < k) {
-					strcpy(src[m], ((*stripe)[i]).data_block[j]);
-				} else {
-					strcpy(src[m], ((*stripe)[i]).parity_block[k-j]);
-				}
-				m++;
-			}
-		}
-		ec_encode_data(block_size, k, n-k, tables, src, dest);
-		printf("Output src\n");
-		for (j = 0; j < k; j++) {
-			printf("src[%d]: %s\n", j, src[j]);
-		}
-		ec_encode_data(block_size, k, n-k, tables, src, dest);
-		fflush(stdout);
-		o = 0;
-		printf("Output dest:\n");
-		for (l = 0; l < n; l++) {
-			if (validstripes[l] == 0) {
-				printf("dest[%d]: %s\n", o, dest[o]);
-				strcpy(((*stripe)[i]).data_block[l], dest[o]);
-				o++;
-			}
-		}
-		for (j = 0; j < n-k; j++) {
-			free(dest[j]);
-		}
-		for (j = 0; j < k; j++) {
-			free(src[j]);
-		}
-		free(src);
-		free(dest);
-	}
-	*/
+	
 	free(encode_matrix);
 	free(errors_matrix);
 	free(invert_matrix);
