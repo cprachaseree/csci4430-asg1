@@ -180,6 +180,11 @@ void get_file(int client_sd, int file_name_length) {
         printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
         exit(0);
     }
+    if (get_reply.type == 0xB3) {
+        free(file_name);
+        free(file_path);
+        return;
+    }
     FILE *mfp;
     mfp = fopen(file_path, "r");
     fscanf(mfp, "%d\n", &file_size);
@@ -197,12 +202,17 @@ void get_file(int client_sd, int file_name_length) {
         char *file_path = (char *) calloc(file_path_length, sizeof(char));
         snprintf(file_path, file_path_length, "data/%d_%s_%d", server_id, file_name, i);
         fp = fopen(file_path, "r");
-        fread(buffer, block_size + 1, 1, fp);
+        fread(buffer, block_size, 1, fp);
         if ((len = send(client_sd, buffer, block_size, 0)) < 0) {
             printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
             exit(0);
         }
     }
+    free(buffer);
+    free(file_name);
+    free(file_path);
+    fclose(mfp);
+    fclose(fp);
 }
 
 void list(int client_sd) {

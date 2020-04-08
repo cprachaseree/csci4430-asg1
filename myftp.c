@@ -146,6 +146,7 @@ int chunk_file(char *file_name, int n, int k, int block_size, Stripe **stripe) {
 	fp = fopen(file_name, "r");
 	data_block_no = n - k;
 	// get num of stripes based on file size, k, and block size
+	num_of_stripes = ((file_size - 1) / (k * block_size)) + 1;
 	*stripe = (Stripe *) calloc(num_of_stripes, sizeof(Stripe));
 	for (i = 0; i < num_of_stripes; i++) {
 		// to be used so when the stripes are seperated we know which stripe id it is
