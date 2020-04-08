@@ -207,12 +207,12 @@ void get_file(int client_sd, int file_name_length) {
             printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
             exit(0);
         }
+        fclose(fp);
     }
     free(buffer);
     free(file_name);
     free(file_path);
     fclose(mfp);
-    fclose(fp);
 }
 
 void list(int client_sd) {

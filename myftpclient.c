@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
 				// send/recv file from this server sd
 				if (server_reply.type == 0xB3) {
 					// no file
-					printf("File does not exist in server");
+					printf("File does not exist in server\n");
 					exit(0);
 				} else if (server_reply.type == 0xB2) {
 					// for get file 
