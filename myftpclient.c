@@ -10,7 +10,7 @@ void list(int sd, int payload_size);
 void put(int sd, int n, int k, Stripe *stripe,
 	int num_of_stripes, char *file_name, int file_size, int block_size);
 int receive_stripes(int n, int k, int block_size,
-	int sd, Stripe **stripe, int num_of_stripes);
+	int sd, Stripe **stripe, int num_of_stripes, int *validstripes);
 void write_to_file(char *file_name,  int k, int block_size, int file_size, int num_of_stripes, Stripe *stripe);
 
 int main(int argc, char *argv[]) {
@@ -170,8 +170,7 @@ int main(int argc, char *argv[]) {
 							}
 						}
 					}
-					serverid = receive_stripes(n, k, block_size,sd, &stripe, num_of_stripes);
-					validstripes[serverid - 1] = 1;
+					serverid = receive_stripes(n, k, block_size,sd, &stripe, num_of_stripes, validstripes);
 				} else if (server_reply.type == 0xC2) {
 					// for put file
 					file_size = get_file_size(file_name);
@@ -331,7 +330,7 @@ void put(int sd, int n, int k, Stripe *stripe,
 }
 
 int receive_stripes(int n, int k, int block_size,
-	int sd, Stripe **stripe, int num_of_stripes) {
+	int sd, Stripe **stripe, int num_of_stripes, int *validstripes) {
 	
 	int len, i, j;
 	int serverid =  check_file_data_header(sd) - sizeof(struct message_s);
@@ -340,7 +339,7 @@ int receive_stripes(int n, int k, int block_size,
 	for (i = 0; i < num_of_stripes; i++) {
 		if ((len = recv(sd, buffer, block_size, MSG_WAITALL)) < 0) {
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
-	        exit(0);
+	        return -1;
 		}
 		// get the data and put them into the stripes
 		if (serverid <= k) {
@@ -349,7 +348,7 @@ int receive_stripes(int n, int k, int block_size,
 			memcpy(((*stripe)[i]).parity_block[serverid - k - 1], buffer, block_size);
 		}
 	}
-
+	validstripes[serverid - 1] = 1;
 	free(buffer);
 	return serverid;
 }
