@@ -11,6 +11,7 @@ void put(int sd, int n, int k, Stripe *stripe,
 	int num_of_stripes, char *file_name, int file_size, int block_size);
 int receive_stripes(int n, int k, int block_size,
 	int sd, Stripe **stripe, int num_of_stripes);
+void write_to_file(char *file_name,  int k, int block_size, int file_size, int num_of_stripes, Stripe *stripe);
 
 int main(int argc, char *argv[]) {
 	int n, k, block_size, num_of_stripes, sd, x;
@@ -229,12 +230,8 @@ int main(int argc, char *argv[]) {
 		decode_matrix(n, k, block_size, &stripe, num_of_stripes, validstripes);
 		printf("Decoded stripe:\n");
 		// TODO PUT stripe[i].data_block[j] INTO file_name based on file_size
-		for (i = 0; i < num_of_stripes; i++) {
-			for (j = 0; j < k; j++) {
-				printf("%s", stripe[i].data_block[j]);
-			}
-		}
-		printf("\n");
+		write_to_file(file_name, k, block_size, file_size, num_of_stripes, stripe);
+		
 	}
 }
 
@@ -387,4 +384,28 @@ int receive_stripes(int n, int k, int block_size,
 
 	free(buffer);
 	return serverid;
+}
+
+void write_to_file(char *file_name, int k, int block_size, int file_size, int num_of_stripes, Stripe *stripe) {
+	int written = 0, out = 0, i, j;
+	FILE *fw;
+	fw = fopen(file_name, "w");
+	for (i = 0; i < num_of_stripes; i++) {
+		for (j = 0; j < k; j++) {
+			if (written + block_size > file_size) {
+				out = 1;
+				break;
+			}
+			fwrite(stripe[i].data_block[j], sizeof(unsigned char), block_size, fw);
+			written += block_size;
+		}
+		if (out == 1) {
+			break;
+		}
+	}
+	if (out == 1) {
+		unsigned char *last = (unsigned char *) calloc(file_size - written, sizeof(unsigned char));
+		fwrite(stripe[i].data_block[j], sizeof(unsigned char), file_size - written, fw);
+	}
+	fclose(fw);
 }
