@@ -104,11 +104,6 @@ int main(int argc, char *argv[]) {
 		}
 		i += l;
 	}
-	printf("After\n");
-	for (i = 0; i < num_of_server_sd; i++) {
-		printf("%d ", server_sd[i]);
-	}
-	printf("\n");
 	// Select multiple server sd descriptors to maintain
 	// find max fd
 	maxfd = -1;
