@@ -82,15 +82,33 @@ int main(int argc, char *argv[]) {
 	}
 	int j;
 	// make server_sd to be all consecutive
+	for (i = 0; i < n; i++) {
+		printf("%d \n", success_con[i]);
+	}
+	printf("\n");
+	for (i = 0; i < n; i++) {
+		printf("%d \n", server_sd[i]);
+	}
+	printf("\n");
+
 	for(i = 0; i < n; i++) {
-		if (success_con[i] == 0 && i != n-1) {
+		l = 0;
+		while (success_con[i] == 0 && i != n-1) {
 			close(server_sd[i]);
 			for(j = i; j < n; j++) {
 				//close(server_sd[j]);
 				server_sd[j] = server_sd[j + 1];
+				success_con[j] = success_con[j + 1];
 			}
+			l++;
 		}
+		i += l;
 	}
+	printf("After\n");
+	for (i = 0; i < num_of_server_sd; i++) {
+		printf("%d ", server_sd[i]);
+	}
+	printf("\n");
 	// Select multiple server sd descriptors to maintain
 	// find max fd
 	maxfd = -1;
@@ -127,7 +145,7 @@ int main(int argc, char *argv[]) {
 				}
 				else {
 					set_message_type(&client_request_message, user_cmd, 0);
-				}	
+				}
 				if ((len = send(sd, (void *) &client_request_message, sizeof(struct message_s), 0)) < 0) {
 					printf("Send Error: %s (Errno:%d)\n",strerror(errno),errno);
 					exit(0);
@@ -142,7 +160,7 @@ int main(int argc, char *argv[]) {
 				// recv response
 				struct message_s server_reply;
 				memset(&server_reply, 0, sizeof(struct message_s));
-				if ((len = recv(sd, &server_reply, sizeof(struct message_s), 0)) < 0) {
+				if ((len = recv(sd, &server_reply, sizeof(struct message_s), MSG_WAITALL)) < 0) {
 					printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 			        exit(0);
 				}
@@ -171,6 +189,7 @@ int main(int argc, char *argv[]) {
 						}
 					}
 					serverid = receive_stripes(n, k, block_size,sd, &stripe, num_of_stripes, validstripes);
+					validstripes[serverid - 1] = 1;
 				} else if (server_reply.type == 0xC2) {
 					// for put file
 					file_size = get_file_size(file_name);
@@ -228,7 +247,6 @@ void set_message_type(struct message_s *client_request_message,char *user_cmd, i
 
 char *check_arg(int argc, char *argv[]) {
 	if (argc != 3 && argc != 4) {
-		printf("0\n");
 		print_arg_error("client");
 	}
 	char *user_cmd = argv[2];
@@ -295,7 +313,7 @@ void list(int sd, int payload_size) {
 	int len;
 	char* buf;
 	buf = malloc(sizeof(payload_size));
-	if((len = recv(sd, buf, payload_size, 0)) < 0){
+	if((len = recv(sd, buf, payload_size, MSG_WAITALL)) < 0){
 		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 		exit(0);
 	}

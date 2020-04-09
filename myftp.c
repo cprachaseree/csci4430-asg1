@@ -74,7 +74,7 @@ void receive_file(int source_sd, int payload_size, char *file_name, int block_si
     char* buffer = (char *)calloc(block_size, sizeof(char));
 	int i;
     for (i = 0; i < payload_size / block_size + 1; i++) {
-    	if ((len = recv(source_sd, buffer, block_size, 0)) < 0) {
+    	if ((len = recv(source_sd, buffer, block_size, MSG_WAITALL)) < 0) {
     		memset(buffer, 0, sizeof(char));
 			printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	        exit(0);
@@ -101,7 +101,7 @@ int check_file_data_header(int source_sd) {
 	// receive file header
 	struct message_s file_data;
 	memset(&file_data, 0, sizeof(struct message_s));
-	if ((len = recv(source_sd, &file_data, sizeof(struct message_s), 0)) < 0) {
+	if ((len = recv(source_sd, &file_data, sizeof(struct message_s), MSG_WAITALL)) < 0) {
 		printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
 	    exit(0);
 	}
@@ -196,7 +196,25 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 
 	gf_gen_rs_matrix(encode_matrix, n, k);
 	unsigned char **src, **dest;
-	
+	j = 0;
+	for (i = 0; i < n; i++) {
+		if (j == k) {
+			for (l = i; l < n; l++) {
+				for (o = 0; o < num_of_stripes; o++) {
+					validstripes[l] = 0;
+					if (l < k) {
+						memset(((*stripe)[o]).data_block[l], 0, block_size);
+					} else {
+						memset(((*stripe)[o]).parity_block[l - k], 0, block_size);
+					}
+				}
+			}
+			break;
+		}
+		if (validstripes[i] == 1) {
+			j++;
+		}
+	}
 	j = 0;
 	for (i = 0; i < n; i++) {
 		if (validstripes[i] == 1) {
@@ -206,10 +224,7 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 			j++;
 		}
 	}
-	
 	gf_invert_matrix(errors_matrix, invert_matrix, k);
-	
-	
 	j = 0;
 	for (i = 0; i < k; i++) {
 		if (validstripes[i] == 0) {
@@ -219,7 +234,6 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 			j++;
 		}
 	}
-	
 	// IF DECODE MATRIX IS ALL ZEROES 
 	//  IT MEANS WE ALREADY GET K DATA BLOCKS 
 	// SO JUST RETURN
@@ -239,20 +253,29 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 	ec_init_tables(k, n-k, decode_matrix, tables);
 
 	// count number of fail/good column
+
+	/*
 	int fail = 0, good = 0;
 	for (i = 0; i < n; i++) {
 		if (validstripes[i] == 1)
 			good++;
 		else
 			fail++;
-	}
+	}*/
 	for (i = 0; i < num_of_stripes; i++) {
-		src  = (unsigned char **) calloc(good, sizeof(unsigned char **));
-		dest = (unsigned char **) calloc(fail, sizeof(unsigned char **));
+		src  = (unsigned char **) calloc(k, sizeof(unsigned char **));
+		dest = (unsigned char **) calloc(n - k, sizeof(unsigned char **));
+		/*
 		for (j = 0; j < good; j++) {
 			src[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
 		}
 		for (j = 0; j < fail; j++) {
+			dest[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
+		}*/
+		for (j = 0; j < k; j++) {
+			src[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
+		}
+		for (j = 0; j < n - k; j++) {
 			dest[j] = (unsigned char *) calloc(block_size, sizeof(unsigned char *));
 		}
 		m = 0;
@@ -261,23 +284,30 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 				if (j < k) {
 					memcpy(src[m], ((*stripe)[i]).data_block[j], block_size);
 				} else {
-					memcpy(src[m], ((*stripe)[i]).parity_block[k-j], block_size);
+					memcpy(src[m], ((*stripe)[i]).parity_block[j - k], block_size);
 				}
 				m++;
 			}
 		}
-		//ec_encode_data(block_size, good, fail, tables, src, dest);
-		ec_encode_data(block_size, k, n-k, tables, src, dest);
+		// ec_encode_data(block_size, good, fail, tables, src, dest);
+		ec_encode_data(block_size, k, n - k, tables, src, dest);
 		o = 0;
 		
-		for (l = 0; l < n; l++) {
+		for (l = 0; l < k; l++) {
 			if (validstripes[l] == 0) {
 				//printf("dest[%d]: %s\n", o, dest[o]);
 				memcpy(((*stripe)[i]).data_block[l], dest[o], block_size);
 				o++;
 			}
 		}
-		for (j = 0; j < n-k; j++) {
+		/*
+		for (j = 0; j < fail; j++) {
+			free(dest[j]);
+		}
+		for (j = 0; j < good; j++) {
+			free(src[j]);
+		}*/
+		for (j = 0; j < n - k; j++) {
 			free(dest[j]);
 		}
 		for (j = 0; j < k; j++) {
@@ -286,7 +316,6 @@ void decode_matrix(int n, int k, int block_size, Stripe **stripe, int num_of_str
 		free(src);
 		free(dest);
 	}
-	
 	free(encode_matrix);
 	free(errors_matrix);
 	free(invert_matrix);

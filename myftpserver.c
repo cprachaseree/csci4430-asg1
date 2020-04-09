@@ -84,7 +84,9 @@ void* connection(void* client_sd) {
     struct message_s client_request_message;
     memset(&client_request_message, 0, sizeof(client_request_message));
     int len;
-    if ((len = recv(*((int*) client_sd), &client_request_message, sizeof(client_request_message), 0)) < 0) {
+    printf("Connected\n");
+    fflush(stdout);
+    if ((len = recv(*((int*) client_sd), &client_request_message, sizeof(client_request_message), MSG_WAITALL)) < 0) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
@@ -99,13 +101,12 @@ void* connection(void* client_sd) {
         printf("Received put request\n");
         put_file(*((int*) client_sd), reply_length - sizeof(client_request_message));
     }
-
 }
 
 void put_file(int client_sd, int file_name_length) {
     char *file_name = (char *) calloc(file_name_length, sizeof(char));
     int len, i;
-    if ((len = recv(client_sd, file_name, file_name_length, 0)) < 0) {
+    if ((len = recv(client_sd, file_name, file_name_length, MSG_WAITALL)) < 0) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
@@ -154,7 +155,7 @@ void get_file(int client_sd, int file_name_length) {
     char * buffer;
     FILE *fp;
     char *file_name = (char *) calloc(file_name_length, sizeof(char));
-    if ((len = recv(client_sd, file_name, file_name_length, 0)) < 0) {
+    if ((len = recv(client_sd, file_name, file_name_length, MSG_WAITALL)) < 0) {
         printf("receive error: %s (Errno:%d)\n", strerror(errno),errno);
         exit(0);
     }
