@@ -81,32 +81,22 @@ int main(int argc, char *argv[]) {
 		exit(0);
 	}
 	int j;
-	// make server_sd to be all consecutive
-	for (i = 0; i < n; i++) {
-		printf("%d \n", success_con[i]);
-	}
-	printf("\n");
-	for (i = 0; i < n; i++) {
-		printf("%d \n", server_sd[i]);
-	}
-	printf("\n");
-
+	int *tmp;
+	int *cnt = (int *) calloc(num_of_server_sd, sizeof(int)); 
+	l = 0;
 	for(i = 0; i < n; i++) {
-		l = 0;
-		while (success_con[i] == 0 && i != n-1) {
+		if (success_con[i] == 0) {
 			close(server_sd[i]);
-			for(j = i; j < n; j++) {
-				//close(server_sd[j]);
-				server_sd[j] = server_sd[j + 1];
-				success_con[j] = success_con[j + 1];
-			}
+		} else {
+			cnt[l] = server_sd[i];
 			l++;
-			if (i + l == n - 1) {
-				break;
-			}
 		}
-		i += l;
 	}
+	tmp = server_sd;
+	server_sd = cnt;
+	free(tmp);
+	free(success_con);
+
 	// Select multiple server sd descriptors to maintain
 	// find max fd
 	maxfd = -1;
