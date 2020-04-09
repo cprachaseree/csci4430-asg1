@@ -101,6 +101,9 @@ int main(int argc, char *argv[]) {
 				success_con[j] = success_con[j + 1];
 			}
 			l++;
+			if (i + l == n - 1) {
+				break;
+			}
 		}
 		i += l;
 	}
